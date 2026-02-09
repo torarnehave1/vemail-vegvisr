@@ -5,6 +5,12 @@ import { LanguageContext } from './lib/LanguageContext';
 import { readStoredUser, type AuthUser } from './lib/auth';
 import { getStoredLanguage, setStoredLanguage } from './lib/storage';
 import { useTranslation } from './lib/useTranslation';
+import { SidebarLayout } from './components/catalyst/sidebar-layout';
+import { Navbar, NavbarSection, NavbarSpacer } from './components/catalyst/navbar';
+import { EmailSidebar } from './components/EmailSidebar';
+import { EmailList } from './components/EmailList';
+import { EmailView } from './components/EmailView';
+import { emails as allEmails, folders } from './data/mockEmails';
 
 const MAGIC_BASE = 'https://cookie.vegvisr.org';
 const DASHBOARD_BASE = 'https://dashboard.vegvisr.org';
@@ -18,6 +24,21 @@ function App() {
   const [loginStatus, setLoginStatus] = useState('');
   const [loginError, setLoginError] = useState('');
   const [loginLoading, setLoginLoading] = useState(false);
+
+  const [activeFolder, setActiveFolder] = useState('inbox');
+  const [selectedEmailId, setSelectedEmailId] = useState<string | null>(null);
+
+  const filteredEmails = useMemo(() => {
+    if (activeFolder === 'starred') {
+      return allEmails.filter((e) => e.starred);
+    }
+    return allEmails.filter((e) => e.folder === activeFolder);
+  }, [activeFolder]);
+
+  const selectedEmail = useMemo(
+    () => allEmails.find((e) => e.id === selectedEmailId) ?? null,
+    [selectedEmailId]
+  );
 
   const setLanguage = (value: typeof language) => {
     setLanguageState(value);
@@ -208,21 +229,25 @@ function App() {
     };
   }, []);
 
-  return (
-    <LanguageContext.Provider value={contextValue}>
-      <div className="min-h-screen bg-slate-950 text-white">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(56,189,248,0.25),_transparent_55%),radial-gradient(circle_at_bottom,_rgba(139,92,246,0.25),_transparent_55%)]" />
-        <div className="relative mx-auto flex min-h-screen max-w-5xl flex-col px-6 py-12">
-          <header className="flex flex-wrap items-center justify-between gap-4">
-            <img
-              src={appLogo}
-              alt={t('app.title')}
-              className="h-12 w-auto"
-            />
+  const handleFolderChange = (key: string) => {
+    setActiveFolder(key);
+    setSelectedEmailId(null);
+  };
+
+  // Unauthenticated view
+  if (authStatus !== 'authed') {
+    return (
+      <LanguageContext.Provider value={contextValue}>
+        <div className="flex min-h-svh flex-col bg-white dark:bg-zinc-900">
+          <header className="flex items-center justify-between border-b border-zinc-950/10 px-4 py-2 dark:border-white/10">
+            <div className="flex items-center gap-3">
+              <img src={appLogo} alt={t('app.title')} className="h-8 w-auto" />
+              <EcosystemNav />
+            </div>
             <div className="flex items-center gap-3">
               <LanguageSelector value={language} onChange={setLanguage} />
               <AuthBar
-                userEmail={authStatus === 'authed' ? authUser?.email : undefined}
+                userEmail={undefined}
                 badgeLabel={t('app.badge')}
                 signInLabel="Sign in"
                 onSignIn={() => setLoginOpen((prev) => !prev)}
@@ -232,60 +257,102 @@ function App() {
             </div>
           </header>
 
-          <EcosystemNav className="mt-4" />
+          <div className="flex flex-1 flex-col items-center justify-center px-6">
+            {authStatus === 'checking' && (
+              <p className="text-sm text-zinc-500 dark:text-zinc-400">Checking session...</p>
+            )}
 
-          {authStatus === 'anonymous' && loginOpen && (
-            <div className="mt-6 rounded-2xl border border-white/10 bg-white/5 px-6 py-4 text-sm text-white/80">
-              <div className="text-xs font-semibold uppercase tracking-[0.3em] text-white/60">
-                Magic Link Sign In
-              </div>
-              <div className="mt-4 flex flex-col gap-3 sm:flex-row">
-                <input
-                  type="email"
-                  value={loginEmail}
-                  onChange={(event) => setLoginEmail(event.target.value)}
-                  placeholder="you@email.com"
-                  className="flex-1 rounded-2xl border border-white/10 bg-slate-900/60 px-4 py-3 text-sm text-white placeholder:text-white/40 focus:outline-none focus:ring-2 focus:ring-sky-500/60"
-                />
-                <button
-                  type="button"
-                  onClick={sendMagicLink}
-                  disabled={loginLoading}
-                  className="rounded-2xl bg-gradient-to-r from-sky-500 to-violet-500 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-sky-500/30"
-                >
-                  {loginLoading ? 'Sending...' : 'Send link'}
-                </button>
-              </div>
-              {loginStatus && <p className="mt-3 text-xs text-emerald-300">{loginStatus}</p>}
-              {loginError && <p className="mt-3 text-xs text-rose-300">{loginError}</p>}
-              <p className="mt-3 text-xs text-white/50">
-                We will send a secure link that logs you into this app.
+            {authStatus === 'anonymous' && !loginOpen && (
+              <p className="text-sm text-zinc-500 dark:text-zinc-400">
+                Sign in to access your email.
               </p>
-            </div>
-          )}
+            )}
 
-          {authStatus === 'checking' && (
-            <div className="mt-10 rounded-2xl border border-white/10 bg-white/5 px-6 py-4 text-sm text-white/70">
-              Checking session...
-            </div>
-          )}
-
-          {authStatus === 'anonymous' && (
-            <div className="mt-10 rounded-2xl border border-rose-400/30 bg-rose-500/10 px-6 py-4 text-sm text-rose-100">
-              You are not signed in. Click “Sign in” to continue.
-            </div>
-          )}
-
-          <main className="mt-16">
-            <section className="rounded-3xl border border-white/10 bg-white/5 p-8">
-              <h1 className="text-3xl font-semibold text-white">{t('app.title')}</h1>
-              <p className="mt-3 text-sm text-white/70">
-                Email client for the Vegvisr ecosystem.
-              </p>
-            </section>
-          </main>
+            {authStatus === 'anonymous' && loginOpen && (
+              <div className="w-full max-w-sm rounded-xl border border-zinc-950/10 p-6 dark:border-white/10">
+                <div className="text-xs font-semibold uppercase tracking-widest text-zinc-500 dark:text-zinc-400">
+                  Magic Link Sign In
+                </div>
+                <div className="mt-4 flex flex-col gap-3">
+                  <input
+                    type="email"
+                    value={loginEmail}
+                    onChange={(event) => setLoginEmail(event.target.value)}
+                    placeholder="you@email.com"
+                    className="rounded-lg border border-zinc-950/10 bg-transparent px-4 py-2 text-sm text-zinc-950 placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-white/10 dark:text-white dark:placeholder:text-zinc-400"
+                  />
+                  <button
+                    type="button"
+                    onClick={sendMagicLink}
+                    disabled={loginLoading}
+                    className="rounded-lg bg-sky-500 px-5 py-2 text-sm font-semibold text-white shadow-sm hover:bg-sky-600 disabled:opacity-50"
+                  >
+                    {loginLoading ? 'Sending...' : 'Send link'}
+                  </button>
+                </div>
+                {loginStatus && <p className="mt-3 text-xs text-emerald-600 dark:text-emerald-400">{loginStatus}</p>}
+                {loginError && <p className="mt-3 text-xs text-rose-600 dark:text-rose-400">{loginError}</p>}
+                <p className="mt-3 text-xs text-zinc-400 dark:text-zinc-500">
+                  We will send a secure link that logs you into this app.
+                </p>
+              </div>
+            )}
+          </div>
         </div>
-      </div>
+      </LanguageContext.Provider>
+    );
+  }
+
+  // Authenticated email client with Catalyst SidebarLayout
+  return (
+    <LanguageContext.Provider value={contextValue}>
+      <SidebarLayout
+        navbar={
+          <Navbar>
+            <NavbarSection>
+              <img src={appLogo} alt={t('app.title')} className="h-6 w-auto" />
+            </NavbarSection>
+            <NavbarSpacer />
+            <NavbarSection>
+              <EcosystemNav />
+              <LanguageSelector value={language} onChange={setLanguage} />
+              <AuthBar
+                userEmail={authUser?.email}
+                badgeLabel={t('app.badge')}
+                signInLabel="Sign in"
+                onSignIn={() => setLoginOpen((prev) => !prev)}
+                logoutLabel="Log out"
+                onLogout={handleLogout}
+              />
+            </NavbarSection>
+          </Navbar>
+        }
+        sidebar={
+          <EmailSidebar
+            folders={folders}
+            activeFolder={activeFolder}
+            onFolderChange={handleFolderChange}
+            user={authUser}
+          />
+        }
+      >
+        {/* Two-panel email content area */}
+        <div className="-m-6 flex h-[calc(100vh-theme(spacing.4))] lg:-m-10 lg:h-[calc(100vh-theme(spacing.4))]">
+          {/* Email list */}
+          <div className="w-80 shrink-0 border-r border-zinc-950/5 dark:border-white/5">
+            <EmailList
+              emails={filteredEmails}
+              selectedId={selectedEmailId}
+              onSelect={setSelectedEmailId}
+            />
+          </div>
+
+          {/* Email content */}
+          <div className="min-w-0 flex-1">
+            <EmailView email={selectedEmail} />
+          </div>
+        </div>
+      </SidebarLayout>
     </LanguageContext.Provider>
   );
 }

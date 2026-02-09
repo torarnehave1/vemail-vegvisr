@@ -1,9 +1,10 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
 
-body {
+/* Scan vegvisr-ui-kit for utility classes */
+@source "../node_modules/vegvisr-ui-kit/src/**/*.{js,jsx}";
+
+html, body, #root {
   margin: 0;
-  min-height: 100vh;
+  height: 100%;
   font-family: "Inter", system-ui, -apple-system, sans-serif;
 }
