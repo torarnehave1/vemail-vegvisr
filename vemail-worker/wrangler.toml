@@ -1,0 +1,13 @@
+name = "vemail-worker"
+main = "index.js"
+compatibility_date = "2025-01-15"
+workers_dev = true
+
+# Service binding to email-worker (cookie.vegvisr.org)
+[[services]]
+binding = "EMAIL_WORKER"
+service = "email-worker"
+
+[[routes]]
+pattern = "vemail-api.vegvisr.org/*"
+zone_name = "vegvisr.org"

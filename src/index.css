@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+/* Use class-based dark mode (not prefers-color-scheme) */
+@custom-variant dark (&:where(.dark, .dark *));
+
 /* Scan vegvisr-ui-kit for utility classes */
 @source "../node_modules/vegvisr-ui-kit/src/**/*.{js,jsx}";
 
@@ -7,4 +10,97 @@ html, body, #root {
   margin: 0;
   height: 100%;
   font-family: "Inter", system-ui, -apple-system, sans-serif;
+}
+
+/* TipTap editor styles */
+.compose-editor .tiptap {
+  height: 100%;
+  font-size: 0.875rem;
+  line-height: 1.625;
+  color: #09090b;
+}
+
+.compose-editor .tiptap:focus {
+  outline: none;
+}
+
+.compose-editor .tiptap p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  color: #a1a1aa;
+  pointer-events: none;
+  height: 0;
+}
+
+.compose-editor .tiptap h1,
+.compose-editor .tiptap h2,
+.compose-editor .tiptap h3 {
+  font-weight: 600;
+  line-height: 1.3;
+  margin: 0.75em 0 0.25em;
+}
+
+.compose-editor .tiptap h1 { font-size: 1.5em; }
+.compose-editor .tiptap h2 { font-size: 1.25em; }
+.compose-editor .tiptap h3 { font-size: 1.1em; }
+
+.compose-editor .tiptap ul,
+.compose-editor .tiptap ol {
+  padding-left: 1.5em;
+  margin: 0.5em 0;
+}
+
+.compose-editor .tiptap ul { list-style-type: disc; }
+.compose-editor .tiptap ol { list-style-type: decimal; }
+
+.compose-editor .tiptap blockquote {
+  border-left: 3px solid #d4d4d8;
+  padding-left: 1em;
+  margin: 0.5em 0;
+  color: #52525b;
+}
+
+.compose-editor .tiptap code {
+  background: #f4f4f5;
+  border-radius: 0.25em;
+  padding: 0.15em 0.3em;
+  font-size: 0.85em;
+  font-family: ui-monospace, monospace;
+}
+
+.compose-editor .tiptap pre {
+  background: #f4f4f5;
+  border-radius: 0.5em;
+  padding: 0.75em 1em;
+  margin: 0.5em 0;
+  overflow-x: auto;
+}
+
+.compose-editor .tiptap pre code {
+  background: none;
+  padding: 0;
+}
+
+.compose-editor .tiptap a {
+  color: #0284c7;
+  text-decoration: underline;
+}
+
+.compose-editor .tiptap hr {
+  border: none;
+  border-top: 1px solid #e4e4e7;
+  margin: 1em 0;
+}
+
+.compose-editor .tiptap img,
+.compose-editor .tiptap .compose-img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 0.5em;
+  margin: 0.5em 0;
+}
+
+.compose-editor .tiptap img.ProseMirror-selectednode {
+  outline: 2px solid #0284c7;
+  outline-offset: 2px;
 }

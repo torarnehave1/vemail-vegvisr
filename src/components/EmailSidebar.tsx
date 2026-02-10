@@ -9,6 +9,7 @@ import {
   SidebarFooter,
 } from './catalyst/sidebar';
 import { Avatar } from './catalyst/avatar';
+import { Button } from './catalyst/button';
 import {
   Inbox,
   Send,
@@ -19,6 +20,7 @@ import {
   Mail,
   Settings,
   HelpCircle,
+  Plus,
   type LucideIcon,
 } from 'lucide-react';
 import type { Folder } from '../data/mockEmails';
@@ -37,10 +39,13 @@ type Props = {
   folders: Folder[];
   activeFolder: string;
   onFolderChange: (key: string) => void;
+  onCompose: () => void;
+  onSettings: () => void;
+  settingsActive?: boolean;
   user: AuthUser | null;
 };
 
-export function EmailSidebar({ folders, activeFolder, onFolderChange, user }: Props) {
+export function EmailSidebar({ folders, activeFolder, onFolderChange, onCompose, onSettings, settingsActive, user }: Props) {
   return (
     <Sidebar>
       <SidebarHeader>
@@ -48,6 +53,10 @@ export function EmailSidebar({ folders, activeFolder, onFolderChange, user }: Pr
           <Mail className="size-5 text-sky-500" data-slot="icon" />
           <SidebarLabel>Vegvisr Email</SidebarLabel>
         </SidebarItem>
+        <Button color="sky" className="mt-2 w-full" onClick={onCompose}>
+          <Plus className="size-4" data-slot="icon" />
+          Compose
+        </Button>
       </SidebarHeader>
 
       <SidebarBody>
@@ -79,7 +88,7 @@ export function EmailSidebar({ folders, activeFolder, onFolderChange, user }: Pr
             <HelpCircle data-slot="icon" />
             <SidebarLabel>Support</SidebarLabel>
           </SidebarItem>
-          <SidebarItem>
+          <SidebarItem current={settingsActive} onClick={onSettings}>
             <Settings data-slot="icon" />
             <SidebarLabel>Settings</SidebarLabel>
           </SidebarItem>

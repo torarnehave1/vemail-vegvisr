@@ -1,16 +1,21 @@
-import { useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { AuthBar, EcosystemNav, LanguageSelector } from 'vegvisr-ui-kit';
 import appLogo from './assets/app-logo.png';
 import { LanguageContext } from './lib/LanguageContext';
 import { readStoredUser, type AuthUser } from './lib/auth';
 import { getStoredLanguage, setStoredLanguage } from './lib/storage';
 import { useTranslation } from './lib/useTranslation';
-import { SidebarLayout } from './components/catalyst/sidebar-layout';
-import { Navbar, NavbarSection, NavbarSpacer } from './components/catalyst/navbar';
 import { EmailSidebar } from './components/EmailSidebar';
 import { EmailList } from './components/EmailList';
 import { EmailView } from './components/EmailView';
 import { emails as allEmails, folders } from './data/mockEmails';
+
+const ComposeView = lazy(() =>
+  import('./components/ComposeView').then((m) => ({ default: m.ComposeView }))
+);
+const EmailSettings = lazy(() =>
+  import('./components/EmailSettings').then((m) => ({ default: m.EmailSettings }))
+);
 
 const MAGIC_BASE = 'https://cookie.vegvisr.org';
 const DASHBOARD_BASE = 'https://dashboard.vegvisr.org';
@@ -27,6 +32,7 @@ function App() {
 
   const [activeFolder, setActiveFolder] = useState('inbox');
   const [selectedEmailId, setSelectedEmailId] = useState<string | null>(null);
+  const [activeView, setActiveView] = useState<'email' | 'compose' | 'settings'>('email');
 
   const filteredEmails = useMemo(() => {
     if (activeFolder === 'starred') {
@@ -234,43 +240,48 @@ function App() {
     setSelectedEmailId(null);
   };
 
+  // Shared dark header for vegvisr-ui-kit components
+  const appHeader = (
+    <header className="flex shrink-0 items-center justify-between bg-zinc-900 px-4 py-2">
+      <div className="flex items-center gap-3">
+        <img src={appLogo} alt={t('app.title')} className="h-8 w-auto" />
+        <EcosystemNav />
+      </div>
+      <div className="flex items-center gap-3">
+        <LanguageSelector value={language} onChange={setLanguage} />
+        <AuthBar
+          userEmail={authStatus === 'authed' ? authUser?.email : undefined}
+          badgeLabel={t('app.badge')}
+          signInLabel="Sign in"
+          onSignIn={() => setLoginOpen((prev) => !prev)}
+          logoutLabel="Log out"
+          onLogout={handleLogout}
+        />
+      </div>
+    </header>
+  );
+
   // Unauthenticated view
   if (authStatus !== 'authed') {
     return (
       <LanguageContext.Provider value={contextValue}>
-        <div className="flex min-h-svh flex-col bg-white dark:bg-zinc-900">
-          <header className="flex items-center justify-between border-b border-zinc-950/10 px-4 py-2 dark:border-white/10">
-            <div className="flex items-center gap-3">
-              <img src={appLogo} alt={t('app.title')} className="h-8 w-auto" />
-              <EcosystemNav />
-            </div>
-            <div className="flex items-center gap-3">
-              <LanguageSelector value={language} onChange={setLanguage} />
-              <AuthBar
-                userEmail={undefined}
-                badgeLabel={t('app.badge')}
-                signInLabel="Sign in"
-                onSignIn={() => setLoginOpen((prev) => !prev)}
-                logoutLabel="Log out"
-                onLogout={handleLogout}
-              />
-            </div>
-          </header>
+        <div className="flex h-screen flex-col">
+          {appHeader}
 
-          <div className="flex flex-1 flex-col items-center justify-center px-6">
+          <div className="flex flex-1 flex-col items-center justify-center bg-zinc-100 px-6">
             {authStatus === 'checking' && (
-              <p className="text-sm text-zinc-500 dark:text-zinc-400">Checking session...</p>
+              <p className="text-sm text-zinc-500">Checking session...</p>
             )}
 
             {authStatus === 'anonymous' && !loginOpen && (
-              <p className="text-sm text-zinc-500 dark:text-zinc-400">
+              <p className="text-sm text-zinc-500">
                 Sign in to access your email.
               </p>
             )}
 
             {authStatus === 'anonymous' && loginOpen && (
-              <div className="w-full max-w-sm rounded-xl border border-zinc-950/10 p-6 dark:border-white/10">
-                <div className="text-xs font-semibold uppercase tracking-widest text-zinc-500 dark:text-zinc-400">
+              <div className="w-full max-w-sm rounded-xl border border-zinc-950/10 bg-white p-6 shadow-sm">
+                <div className="text-xs font-semibold uppercase tracking-widest text-zinc-500">
                   Magic Link Sign In
                 </div>
                 <div className="mt-4 flex flex-col gap-3">
@@ -279,7 +290,7 @@ function App() {
                     value={loginEmail}
                     onChange={(event) => setLoginEmail(event.target.value)}
                     placeholder="you@email.com"
-                    className="rounded-lg border border-zinc-950/10 bg-transparent px-4 py-2 text-sm text-zinc-950 placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-white/10 dark:text-white dark:placeholder:text-zinc-400"
+                    className="rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm text-zinc-950 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                   <button
                     type="button"
@@ -290,9 +301,9 @@ function App() {
                     {loginLoading ? 'Sending...' : 'Send link'}
                   </button>
                 </div>
-                {loginStatus && <p className="mt-3 text-xs text-emerald-600 dark:text-emerald-400">{loginStatus}</p>}
-                {loginError && <p className="mt-3 text-xs text-rose-600 dark:text-rose-400">{loginError}</p>}
-                <p className="mt-3 text-xs text-zinc-400 dark:text-zinc-500">
+                {loginStatus && <p className="mt-3 text-xs text-emerald-600">{loginStatus}</p>}
+                {loginError && <p className="mt-3 text-xs text-rose-600">{loginError}</p>}
+                <p className="mt-3 text-xs text-zinc-400">
                   We will send a secure link that logs you into this app.
                 </p>
               </div>
@@ -303,56 +314,63 @@ function App() {
     );
   }
 
-  // Authenticated email client with Catalyst SidebarLayout
+  // Authenticated: dark header + three-panel email client
   return (
     <LanguageContext.Provider value={contextValue}>
-      <SidebarLayout
-        navbar={
-          <Navbar>
-            <NavbarSection>
-              <img src={appLogo} alt={t('app.title')} className="h-6 w-auto" />
-            </NavbarSection>
-            <NavbarSpacer />
-            <NavbarSection>
-              <EcosystemNav />
-              <LanguageSelector value={language} onChange={setLanguage} />
-              <AuthBar
-                userEmail={authUser?.email}
-                badgeLabel={t('app.badge')}
-                signInLabel="Sign in"
-                onSignIn={() => setLoginOpen((prev) => !prev)}
-                logoutLabel="Log out"
-                onLogout={handleLogout}
-              />
-            </NavbarSection>
-          </Navbar>
-        }
-        sidebar={
-          <EmailSidebar
-            folders={folders}
-            activeFolder={activeFolder}
-            onFolderChange={handleFolderChange}
-            user={authUser}
-          />
-        }
-      >
-        {/* Two-panel email content area */}
-        <div className="-m-6 flex h-[calc(100vh-theme(spacing.4))] lg:-m-10 lg:h-[calc(100vh-theme(spacing.4))]">
-          {/* Email list */}
-          <div className="w-80 shrink-0 border-r border-zinc-950/5 dark:border-white/5">
-            <EmailList
-              emails={filteredEmails}
-              selectedId={selectedEmailId}
-              onSelect={setSelectedEmailId}
+      <div className="flex h-screen flex-col">
+        {appHeader}
+
+        {/* Three-panel layout: sidebar | email list | email content */}
+        <div className="flex min-h-0 flex-1">
+          {/* Folder sidebar */}
+          <div className="w-64 shrink-0 border-r border-zinc-950/5 bg-white">
+            <EmailSidebar
+              folders={folders}
+              activeFolder={activeFolder}
+              onFolderChange={(key) => { handleFolderChange(key); setActiveView('email'); }}
+              onCompose={() => { setActiveView('compose'); setSelectedEmailId(null); }}
+              onSettings={() => setActiveView('settings')}
+              settingsActive={activeView === 'settings'}
+              user={authUser}
             />
           </div>
 
-          {/* Email content */}
-          <div className="min-w-0 flex-1">
-            <EmailView email={selectedEmail} />
+          {/* Email list */}
+          <div className="w-80 shrink-0 border-r border-zinc-950/5 bg-white">
+            <EmailList
+              emails={filteredEmails}
+              selectedId={selectedEmailId}
+              onSelect={(id) => { setSelectedEmailId(id); setActiveView('email'); }}
+            />
+          </div>
+
+          {/* Email content / Compose / Settings */}
+          <div className="min-w-0 flex-1 bg-zinc-50">
+            {activeView === 'compose' && (
+              <Suspense fallback={<div className="flex h-full items-center justify-center text-sm text-zinc-400">Loading editor...</div>}>
+                <ComposeView
+                  onClose={() => setActiveView('email')}
+                  onSend={(email) => {
+                    console.log('Send email:', email);
+                    setActiveView('email');
+                  }}
+                />
+              </Suspense>
+            )}
+            {activeView === 'settings' && (
+              <Suspense fallback={<div className="flex h-full items-center justify-center text-sm text-zinc-400">Loading settings...</div>}>
+                <EmailSettings
+                  userEmail={authUser?.email ?? null}
+                  onClose={() => setActiveView('email')}
+                />
+              </Suspense>
+            )}
+            {activeView === 'email' && (
+              <EmailView email={selectedEmail} />
+            )}
           </div>
         </div>
-      </SidebarLayout>
+      </div>
     </LanguageContext.Provider>
   );
 }
