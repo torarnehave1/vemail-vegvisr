@@ -8,6 +8,7 @@ export type EmailAccount = {
   aliases: string[];
   isDefault: boolean;
   hasPassword: boolean;
+  storeUrl: string;
 };
 
 // --- localStorage: metadata only, never passwords ---

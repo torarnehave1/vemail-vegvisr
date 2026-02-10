@@ -37,6 +37,7 @@ const emptyForm = {
   name: '',
   email: '',
   appPassword: '',
+  storeUrl: '',
 };
 
 export function EmailSettings({ userEmail, onClose }: Props) {
@@ -81,6 +82,7 @@ export function EmailSettings({ userEmail, onClose }: Props) {
       name: account.name,
       email: account.email,
       appPassword: '',
+      storeUrl: account.storeUrl || '',
     });
   };
 
@@ -95,6 +97,7 @@ export function EmailSettings({ userEmail, onClose }: Props) {
         aliases: [],
         isDefault: false,
         hasPassword: !!password,
+        storeUrl: form.storeUrl.trim(),
       });
       setAccounts(updated);
       const newAccount = updated[updated.length - 1];
@@ -106,6 +109,7 @@ export function EmailSettings({ userEmail, onClose }: Props) {
       const updated = updateAccount(editing, {
         name: form.name,
         email: form.email,
+        storeUrl: form.storeUrl.trim(),
         ...(password ? { hasPassword: true } : {}),
       });
       setAccounts(updated);
@@ -396,6 +400,22 @@ export function EmailSettings({ userEmail, onClose }: Props) {
                       setForm((f) => ({ ...f, appPassword: e.target.value }))
                     }
                     placeholder="xxxx xxxx xxxx xxxx"
+                  />
+                </Field>
+
+                <Field>
+                  <Label>Store Worker URL</Label>
+                  <Description>
+                    The vemail-store-worker URL for this account&apos;s email
+                    storage (e.g. https://vemail-store-worker.example.workers.dev).
+                  </Description>
+                  <Input
+                    type="url"
+                    value={form.storeUrl}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                      setForm((f) => ({ ...f, storeUrl: e.target.value }))
+                    }
+                    placeholder="https://vemail-store-worker.xxx.workers.dev"
                   />
                 </Field>
 

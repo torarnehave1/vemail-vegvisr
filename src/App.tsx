@@ -3,13 +3,14 @@ import { AuthBar, EcosystemNav, LanguageSelector } from 'vegvisr-ui-kit';
 import appLogo from './assets/app-logo.png';
 import { LanguageContext } from './lib/LanguageContext';
 import { readStoredUser, type AuthUser } from './lib/auth';
-import { sendEmail } from './lib/emailAccounts';
+import { sendEmail, getAccounts, loadAccountsFromCloud, type EmailAccount } from './lib/emailAccounts';
+import { fetchEmails, fetchEmail, toEmail } from './lib/emailStore';
 import { getStoredLanguage, setStoredLanguage } from './lib/storage';
 import { useTranslation } from './lib/useTranslation';
 import { EmailSidebar } from './components/EmailSidebar';
 import { EmailList } from './components/EmailList';
 import { EmailView } from './components/EmailView';
-import { emails as allEmails, folders } from './data/mockEmails';
+import { folders, type Email } from './data/mockEmails';
 
 const ComposeView = lazy(() =>
   import('./components/ComposeView').then((m) => ({ default: m.ComposeView }))
@@ -35,18 +36,65 @@ function App() {
   const [selectedEmailId, setSelectedEmailId] = useState<string | null>(null);
   const [activeView, setActiveView] = useState<'email' | 'compose' | 'settings'>('email');
   const [sendStatus, setSendStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [emails, setEmails] = useState<Email[]>([]);
+  const [emailsLoading, setEmailsLoading] = useState(false);
+  const [selectedEmail, setSelectedEmail] = useState<Email | null>(null);
+  const [activeAccount, setActiveAccount] = useState<EmailAccount | null>(null);
 
-  const filteredEmails = useMemo(() => {
-    if (activeFolder === 'starred') {
-      return allEmails.filter((e) => e.starred);
+  // Load email accounts when user authenticates
+  useEffect(() => {
+    if (!authUser?.email) {
+      setActiveAccount(null);
+      return;
     }
-    return allEmails.filter((e) => e.folder === activeFolder);
-  }, [activeFolder]);
+    // Try local first, then cloud
+    const local = getAccounts();
+    if (local.length > 0) {
+      setActiveAccount(local.find((a) => a.isDefault) || local[0]);
+      return;
+    }
+    loadAccountsFromCloud(authUser.email).then((cloud) => {
+      if (cloud && cloud.length > 0) {
+        setActiveAccount(cloud.find((a) => a.isDefault) || cloud[0]);
+      }
+    });
+  }, [authUser?.email]);
 
-  const selectedEmail = useMemo(
-    () => allEmails.find((e) => e.id === selectedEmailId) ?? null,
-    [selectedEmailId]
-  );
+  // The email address and store URL to use for fetching
+  const mailboxEmail = activeAccount?.email || authUser?.email || '';
+  const mailboxStoreUrl = activeAccount?.storeUrl || undefined;
+
+  // Fetch emails from store-worker when folder or user changes
+  useEffect(() => {
+    if (!mailboxEmail) return;
+    let cancelled = false;
+    setEmailsLoading(true);
+    setEmails([]);
+    fetchEmails(mailboxEmail, activeFolder, 50, 0, mailboxStoreUrl).then((stored) => {
+      if (!cancelled) {
+        setEmails(stored.map((s) => toEmail(s)));
+        setEmailsLoading(false);
+      }
+    });
+    return () => { cancelled = true; };
+  }, [mailboxEmail, mailboxStoreUrl, activeFolder]);
+
+  // Fetch full email (with HTML body from R2) when selection changes
+  useEffect(() => {
+    if (!selectedEmailId || !mailboxEmail) {
+      setSelectedEmail(null);
+      return;
+    }
+    let cancelled = false;
+    fetchEmail(mailboxEmail, selectedEmailId, mailboxStoreUrl).then((result) => {
+      if (!cancelled && result) {
+        setSelectedEmail(toEmail(result.email, result.bodyHtml));
+      } else if (!cancelled) {
+        setSelectedEmail(null);
+      }
+    });
+    return () => { cancelled = true; };
+  }, [mailboxEmail, mailboxStoreUrl, selectedEmailId]);
 
   const setLanguage = (value: typeof language) => {
     setLanguageState(value);
@@ -340,9 +388,10 @@ function App() {
           {/* Email list */}
           <div className="w-80 shrink-0 border-r border-zinc-950/5 bg-white">
             <EmailList
-              emails={filteredEmails}
+              emails={emails}
               selectedId={selectedEmailId}
               onSelect={(id) => { setSelectedEmailId(id); setActiveView('email'); }}
+              loading={emailsLoading}
             />
           </div>
 

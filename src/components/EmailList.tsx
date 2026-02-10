@@ -7,6 +7,7 @@ type Props = {
   emails: Email[];
   selectedId: string | null;
   onSelect: (id: string) => void;
+  loading?: boolean;
 };
 
 function formatDate(iso: string): string {
@@ -36,7 +37,15 @@ const labelColorMap: Record<string, 'violet' | 'emerald' | 'zinc' | 'sky' | 'amb
   meeting: 'sky',
 };
 
-export function EmailList({ emails, selectedId, onSelect }: Props) {
+export function EmailList({ emails, selectedId, onSelect, loading }: Props) {
+  if (loading) {
+    return (
+      <div className="flex h-full items-center justify-center p-6 text-sm text-zinc-400">
+        Loading...
+      </div>
+    );
+  }
+
   if (emails.length === 0) {
     return (
       <div className="flex h-full items-center justify-center p-6 text-sm text-zinc-500 dark:text-zinc-400">
