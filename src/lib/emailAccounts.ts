@@ -160,16 +160,16 @@ export async function sendEmail(
   }
 
   try {
-    const res = await fetch(`${VEMAIL_WORKER}/send-gmail-email`, {
+    const res = await fetch(`${VEMAIL_WORKER}/send-email`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         userEmail,
         accountId: account.id,
+        fromEmail: opts.fromEmail || account.email,
         toEmail: opts.to,
         subject: opts.subject,
         html: opts.html,
-        fromEmail: opts.fromEmail || account.email,
       }),
     });
     const data = await res.json();
