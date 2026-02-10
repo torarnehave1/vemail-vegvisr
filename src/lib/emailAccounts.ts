@@ -75,7 +75,7 @@ export function setDefaultAccount(id: string): EmailAccount[] {
 
 /**
  * Save account metadata + password to the email-worker.
- * Password is encrypted server-side via AES-GCM and stored in D1.
+ * Password is stored server-side in D1 (never returned to the browser).
  */
 export async function saveAccountToCloud(
   userEmail: string,
@@ -132,6 +132,52 @@ export async function loadAccountsFromCloud(
     return null;
   } catch {
     return null;
+  }
+}
+
+/**
+ * Send an email via the default (or specified) account through vemail-worker.
+ * Credentials are resolved server-side from D1 — no passwords leave the server.
+ */
+export async function sendEmail(
+  userEmail: string,
+  opts: {
+    accountId?: string;
+    to: string;
+    subject: string;
+    html: string;
+    fromEmail?: string;
+  }
+): Promise<{ success: boolean; error?: string }> {
+  const accounts = getAccounts();
+  const account = opts.accountId
+    ? accounts.find((a) => a.id === opts.accountId)
+    : accounts.find((a) => a.isDefault) || accounts[0];
+
+  if (!account) {
+    return { success: false, error: 'No email account configured. Go to Settings to add one.' };
+  }
+
+  try {
+    const res = await fetch(`${VEMAIL_WORKER}/send-gmail-email`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        userEmail,
+        accountId: account.id,
+        toEmail: opts.to,
+        subject: opts.subject,
+        html: opts.html,
+        fromEmail: opts.fromEmail || account.email,
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok || !data.success) {
+      return { success: false, error: data.error || 'Failed to send email' };
+    }
+    return { success: true };
+  } catch {
+    return { success: false, error: 'Network error — could not reach email service' };
   }
 }
 

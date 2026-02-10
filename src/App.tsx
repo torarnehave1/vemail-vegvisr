@@ -3,6 +3,7 @@ import { AuthBar, EcosystemNav, LanguageSelector } from 'vegvisr-ui-kit';
 import appLogo from './assets/app-logo.png';
 import { LanguageContext } from './lib/LanguageContext';
 import { readStoredUser, type AuthUser } from './lib/auth';
+import { sendEmail } from './lib/emailAccounts';
 import { getStoredLanguage, setStoredLanguage } from './lib/storage';
 import { useTranslation } from './lib/useTranslation';
 import { EmailSidebar } from './components/EmailSidebar';
@@ -33,6 +34,7 @@ function App() {
   const [activeFolder, setActiveFolder] = useState('inbox');
   const [selectedEmailId, setSelectedEmailId] = useState<string | null>(null);
   const [activeView, setActiveView] = useState<'email' | 'compose' | 'settings'>('email');
+  const [sendStatus, setSendStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   const filteredEmails = useMemo(() => {
     if (activeFolder === 'starred') {
@@ -350,9 +352,22 @@ function App() {
               <Suspense fallback={<div className="flex h-full items-center justify-center text-sm text-zinc-400">Loading editor...</div>}>
                 <ComposeView
                   onClose={() => setActiveView('email')}
-                  onSend={(email) => {
-                    console.log('Send email:', email);
-                    setActiveView('email');
+                  onSend={async (email) => {
+                    if (!authUser?.email) return;
+                    setSendStatus(null);
+                    const result = await sendEmail(authUser.email, {
+                      to: email.to,
+                      subject: email.subject,
+                      html: email.bodyHtml,
+                    });
+                    if (result.success) {
+                      setSendStatus({ type: 'success', message: 'Email sent!' });
+                      setActiveView('email');
+                      setTimeout(() => setSendStatus(null), 4000);
+                    } else {
+                      setSendStatus({ type: 'error', message: result.error || 'Failed to send' });
+                      setTimeout(() => setSendStatus(null), 6000);
+                    }
                   }}
                 />
               </Suspense>
@@ -370,6 +385,19 @@ function App() {
             )}
           </div>
         </div>
+
+        {/* Send status toast */}
+        {sendStatus && (
+          <div
+            className={`fixed bottom-4 right-4 z-50 rounded-lg px-4 py-2 text-sm font-medium shadow-lg ${
+              sendStatus.type === 'success'
+                ? 'bg-emerald-600 text-white'
+                : 'bg-rose-600 text-white'
+            }`}
+          >
+            {sendStatus.message}
+          </div>
+        )}
       </div>
     </LanguageContext.Provider>
   );
