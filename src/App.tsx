@@ -425,7 +425,6 @@ function App() {
               <Suspense fallback={<div className="flex h-full items-center justify-center text-sm text-zinc-400">Loading settings...</div>}>
                 <EmailSettings
                   userEmail={authUser?.email ?? null}
-                  userRole={authUser?.role ?? null}
                   onClose={() => setActiveView('email')}
                 />
               </Suspense>
