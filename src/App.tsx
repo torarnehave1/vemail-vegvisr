@@ -88,7 +88,7 @@ function App() {
     let cancelled = false;
     fetchEmail(mailboxEmail, selectedEmailId, mailboxStoreUrl).then((result) => {
       if (!cancelled && result) {
-        setSelectedEmail(toEmail(result.email, result.bodyHtml));
+        setSelectedEmail(toEmail(result.email, result.bodyHtml, result.bodyText));
       } else if (!cancelled) {
         setSelectedEmail(null);
       }

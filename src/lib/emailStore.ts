@@ -3,14 +3,14 @@ import type { Email } from '../data/mockEmails';
 const DEFAULT_STORE_WORKER = 'https://vemail-store-worker.post-e91.workers.dev';
 
 /** Convert a StoredEmail from the API into the UI Email type */
-export function toEmail(s: StoredEmail, bodyHtml?: string | null): Email {
+export function toEmail(s: StoredEmail, bodyHtml?: string | null, bodyText?: string | null): Email {
   return {
     id: s.id,
     from: { name: s.from_name || s.from_address, email: s.from_address },
     to: [{ name: s.to_address, email: s.to_address }],
     subject: s.subject || '(no subject)',
     preview: s.snippet || '',
-    body: bodyHtml || s.snippet || '',
+    body: bodyHtml || bodyText || s.snippet || '',
     date: s.received_at,
     read: !!s.read,
     starred: !!s.starred,
@@ -39,6 +39,7 @@ export type StoredEmail = {
 
 export type StoredEmailFull = StoredEmail & {
   body_r2_key: string | null;
+  body_text_r2_key: string | null;
   raw_r2_key: string | null;
 };
 
@@ -70,7 +71,7 @@ export async function fetchEmail(
   userEmail: string,
   emailId: string,
   storeUrl?: string
-): Promise<{ email: StoredEmailFull; bodyHtml: string | null } | null> {
+): Promise<{ email: StoredEmailFull; bodyHtml: string | null; bodyText: string | null } | null> {
   try {
     const base = storeUrl || DEFAULT_STORE_WORKER;
     const res = await fetch(
@@ -78,7 +79,7 @@ export async function fetchEmail(
     );
     if (!res.ok) return null;
     const data = await res.json();
-    const typed = data as { email: StoredEmailFull; bodyHtml: string | null };
+    const typed = data as { email: StoredEmailFull; bodyHtml: string | null; bodyText: string | null };
     return typed;
   } catch {
     return null;
