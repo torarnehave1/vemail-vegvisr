@@ -30,6 +30,7 @@ import {
 
 type Props = {
   userEmail: string | null;
+  userRole: string | null;
   onClose: () => void;
 };
 
@@ -40,7 +41,8 @@ const emptyForm = {
   storeUrl: '',
 };
 
-export function EmailSettings({ userEmail, onClose }: Props) {
+export function EmailSettings({ userEmail, userRole, onClose }: Props) {
+  const isAdmin = userRole?.toLowerCase() === 'admin' || userRole?.toLowerCase() === 'superadmin';
   const [accounts, setAccounts] = useState<EmailAccount[]>([]);
   const [editing, setEditing] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
@@ -219,6 +221,11 @@ export function EmailSettings({ userEmail, onClose }: Props) {
                     <span className="ml-2 text-xs text-emerald-600">
                       Password saved
                     </span>
+                  )}
+                  {account.storeUrl && (
+                    <div className="mt-1 truncate text-xs text-zinc-400">
+                      {account.storeUrl}
+                    </div>
                   )}
 
                   {/* Aliases */}
@@ -403,21 +410,30 @@ export function EmailSettings({ userEmail, onClose }: Props) {
                   />
                 </Field>
 
-                <Field>
-                  <Label>Store Worker URL</Label>
-                  <Description>
-                    The vemail-store-worker URL for this account&apos;s email
-                    storage (e.g. https://vemail-store-worker.example.workers.dev).
-                  </Description>
-                  <Input
-                    type="url"
-                    value={form.storeUrl}
-                    onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                      setForm((f) => ({ ...f, storeUrl: e.target.value }))
-                    }
-                    placeholder="https://vemail-store-worker.xxx.workers.dev"
-                  />
-                </Field>
+                {isAdmin ? (
+                  <Field>
+                    <Label>Store Worker URL</Label>
+                    <Description>
+                      Admin only. The vemail-store-worker URL for this
+                      account&apos;s email storage.
+                    </Description>
+                    <Input
+                      type="url"
+                      value={form.storeUrl}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                        setForm((f) => ({ ...f, storeUrl: e.target.value }))
+                      }
+                      placeholder="https://vemail-store-worker.xxx.workers.dev"
+                    />
+                  </Field>
+                ) : form.storeUrl ? (
+                  <Field>
+                    <Label>Store Worker</Label>
+                    <p className="text-xs text-zinc-500">
+                      {form.storeUrl}
+                    </p>
+                  </Field>
+                ) : null}
 
                 <div className="flex gap-3">
                   <Button color="sky" onClick={handleSave}>
