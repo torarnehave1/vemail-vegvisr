@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import UnderlineExt from '@tiptap/extension-underline';
@@ -30,9 +30,10 @@ import {
   Eye,
   ImageIcon,
 } from 'lucide-react';
-import { getAccounts, type EmailAccount } from '../lib/emailAccounts';
+import { getAccounts, loadAccountsFromCloud, type EmailAccount } from '../lib/emailAccounts';
 
 type Props = {
+  userEmail?: string | null;
   onClose: () => void;
   onSend: (email: {
     to: string;
@@ -46,7 +47,7 @@ type Props = {
   }) => void;
 };
 
-export function ComposeView({ onClose, onSend }: Props) {
+export function ComposeView({ userEmail, onClose, onSend }: Props) {
   const [to, setTo] = useState('');
   const [cc, setCc] = useState('');
   const [bcc, setBcc] = useState('');
@@ -59,15 +60,23 @@ export function ComposeView({ onClose, onSend }: Props) {
   const [accounts, setAccounts] = useState<EmailAccount[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Load accounts on mount
-  useState(() => {
-    const accts = getAccounts();
-    setAccounts(accts);
-    const defaultAccount = accts.find((a) => a.isDefault) || accts[0];
-    if (defaultAccount) {
-      setFromAccountId(defaultAccount.id);
+  // Load accounts on mount — try localStorage first, then cloud
+  useEffect(() => {
+    const local = getAccounts();
+    if (local.length > 0) {
+      setAccounts(local);
+      const def = local.find((a) => a.isDefault) || local[0];
+      if (def) setFromAccountId(def.id);
+    } else if (userEmail) {
+      loadAccountsFromCloud(userEmail).then((cloud) => {
+        if (cloud && cloud.length > 0) {
+          setAccounts(cloud);
+          const def = cloud.find((a) => a.isDefault) || cloud[0];
+          if (def) setFromAccountId(def.id);
+        }
+      });
     }
-  });
+  }, [userEmail]);
 
   // Custom input rule: ![alt](url) → image node
   const markdownImageRule = new InputRule({
@@ -215,8 +224,8 @@ export function ComposeView({ onClose, onSend }: Props) {
 
       {/* Recipient fields */}
       <div className="space-y-0 px-6">
-        {/* From (if multiple accounts) */}
-        {accounts.length > 1 && (
+        {/* From (show when accounts are loaded) */}
+        {accounts.length > 0 && (
           <div className="flex items-center border-b border-zinc-950/5 py-2">
             <label className="w-12 shrink-0 text-sm text-zinc-500">From</label>
             <select

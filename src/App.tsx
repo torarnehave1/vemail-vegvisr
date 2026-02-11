@@ -400,6 +400,7 @@ function App() {
             {activeView === 'compose' && (
               <Suspense fallback={<div className="flex h-full items-center justify-center text-sm text-zinc-400">Loading editor...</div>}>
                 <ComposeView
+                  userEmail={authUser?.email ?? null}
                   onClose={() => setActiveView('email')}
                   onSend={async (email) => {
                     if (!authUser?.email) return;
