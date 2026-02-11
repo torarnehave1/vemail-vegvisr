@@ -33,7 +33,12 @@ export default {
     }
 
     // --- Proxy to email-worker via service binding ---
-    if (path.startsWith('/email-accounts') || path === '/send-gmail-email' || path === '/send-email') {
+    if (
+      path.startsWith('/email-accounts') ||
+      path === '/send-gmail-email' ||
+      path === '/send-email' ||
+      path === '/gmail/sync-now'
+    ) {
       const targetUrl = new URL(request.url)
       // Rewrite host so the email-worker sees the correct path
       targetUrl.hostname = 'email-worker.internal'

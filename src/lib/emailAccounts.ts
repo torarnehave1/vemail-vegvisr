@@ -215,3 +215,25 @@ export async function syncAllAccountsToCloud(
     // Non-fatal
   }
 }
+
+/**
+ * Trigger manual Gmail inbox sync for the current user.
+ */
+export async function triggerGmailSyncNow(
+  userEmail: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const res = await fetch(`${VEMAIL_WORKER}/gmail/sync-now`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userEmail }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.success) {
+      return { success: false, error: data.error || 'Failed to sync Gmail inbox' };
+    }
+    return { success: true };
+  } catch {
+    return { success: false, error: 'Network error — could not reach sync service' };
+  }
+}

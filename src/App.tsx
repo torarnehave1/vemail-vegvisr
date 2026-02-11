@@ -40,6 +40,7 @@ function App() {
   const [emailsLoading, setEmailsLoading] = useState(false);
   const [selectedEmail, setSelectedEmail] = useState<Email | null>(null);
   const [activeAccount, setActiveAccount] = useState<EmailAccount | null>(null);
+  const [inboxRefreshTick, setInboxRefreshTick] = useState(0);
 
   // Load email accounts when user authenticates
   useEffect(() => {
@@ -77,7 +78,7 @@ function App() {
       }
     });
     return () => { cancelled = true; };
-  }, [mailboxEmail, mailboxStoreUrl, activeFolder]);
+  }, [mailboxEmail, mailboxStoreUrl, activeFolder, inboxRefreshTick]);
 
   // Fetch full email (with HTML body from R2) when selection changes
   useEffect(() => {
@@ -428,6 +429,7 @@ function App() {
                 <EmailSettings
                   userEmail={authUser?.email ?? null}
                   onClose={() => setActiveView('email')}
+                  onGmailSyncComplete={() => setInboxRefreshTick((v) => v + 1)}
                 />
               </Suspense>
             )}

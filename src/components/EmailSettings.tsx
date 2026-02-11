@@ -26,12 +26,14 @@ import {
   removeAccountFromCloud,
   loadAccountsFromCloud,
   syncAllAccountsToCloud,
+  triggerGmailSyncNow,
   type EmailAccount,
 } from '../lib/emailAccounts';
 
 type Props = {
   userEmail: string | null;
   onClose: () => void;
+  onGmailSyncComplete?: () => void;
 };
 
 const emptyForm = {
@@ -41,7 +43,7 @@ const emptyForm = {
   accountType: 'gmail' as 'gmail' | 'vegvisr' | 'smtp',
 };
 
-export function EmailSettings({ userEmail, onClose }: Props) {
+export function EmailSettings({ userEmail, onClose, onGmailSyncComplete }: Props) {
   const [accounts, setAccounts] = useState<EmailAccount[]>([]);
   const [editing, setEditing] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
@@ -51,6 +53,7 @@ export function EmailSettings({ userEmail, onClose }: Props) {
   const [status, setStatus] = useState('');
   const [gmailConnected, setGmailConnected] = useState(false);
   const [gmailEmail, setGmailEmail] = useState<string | null>(null);
+  const [gmailSyncing, setGmailSyncing] = useState(false);
 
   useEffect(() => {
     const local = getAccounts();
@@ -139,6 +142,20 @@ export function EmailSettings({ userEmail, onClose }: Props) {
     } catch (error) {
       setStatus('Failed to disconnect Gmail');
     }
+  };
+
+  const handleSyncNow = async () => {
+    if (!userEmail || gmailSyncing) return;
+    setGmailSyncing(true);
+    setStatus('');
+    const result = await triggerGmailSyncNow(userEmail);
+    if (result.success) {
+      setStatus('Gmail synced. Latest email should appear shortly.');
+      onGmailSyncComplete?.();
+    } else {
+      setStatus(result.error || 'Failed to sync Gmail inbox');
+    }
+    setGmailSyncing(false);
   };
 
   const handleAdd = () => {
@@ -561,9 +578,14 @@ export function EmailSettings({ userEmail, onClose }: Props) {
             </div>
 
             {gmailConnected ? (
-              <Button plain onClick={handleDisconnectGmail}>
-                Disconnect
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button color="sky" onClick={handleSyncNow} disabled={gmailSyncing}>
+                  {gmailSyncing ? 'Syncing...' : 'Sync now'}
+                </Button>
+                <Button plain onClick={handleDisconnectGmail} disabled={gmailSyncing}>
+                  Disconnect
+                </Button>
+              </div>
             ) : (
               <Button color="sky" onClick={handleConnectGmail}>
                 <Mail className="size-4" />
