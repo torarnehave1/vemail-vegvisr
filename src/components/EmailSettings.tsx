@@ -14,6 +14,7 @@ import {
   X,
   Save,
   ArrowLeft,
+  Mail,
 } from 'lucide-react';
 import {
   getAccounts,
@@ -48,6 +49,8 @@ export function EmailSettings({ userEmail, onClose }: Props) {
   const [aliasInput, setAliasInput] = useState('');
   const [aliasAccountId, setAliasAccountId] = useState<string | null>(null);
   const [status, setStatus] = useState('');
+  const [gmailConnected, setGmailConnected] = useState(false);
+  const [gmailEmail, setGmailEmail] = useState<string | null>(null);
 
   useEffect(() => {
     const local = getAccounts();
@@ -62,10 +65,79 @@ export function EmailSettings({ userEmail, onClose }: Props) {
     }
   }, [userEmail]);
 
+  // Check Gmail connection status
+  useEffect(() => {
+    if (!userEmail) return;
+
+    fetch('https://auth.vegvisr.org/gmail/get-credentials', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_email: userEmail }),
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success && data.user_email) {
+          setGmailConnected(true);
+          setGmailEmail(data.user_email);
+        }
+      })
+      .catch(() => {
+        setGmailConnected(false);
+        setGmailEmail(null);
+      });
+  }, [userEmail]);
+
+  // Handle Gmail OAuth callback
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const gmailAuthSuccess = params.get('gmail_auth_success');
+    const gmailAuthError = params.get('gmail_auth_error');
+    const connectedEmail = params.get('user_email');
+
+    if (gmailAuthSuccess === 'true' && connectedEmail) {
+      setGmailConnected(true);
+      setGmailEmail(connectedEmail);
+      setStatus('Gmail connected successfully!');
+
+      // Clean up URL params
+      window.history.replaceState({}, '', window.location.pathname);
+    } else if (gmailAuthError) {
+      setStatus(`Gmail connection failed: ${gmailAuthError}`);
+
+      // Clean up URL params
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, []);
+
   const syncMetadata = (updated: EmailAccount[]) => {
     setAccounts(updated);
     if (userEmail) {
       syncAllAccountsToCloud(userEmail, updated);
+    }
+  };
+
+  const handleConnectGmail = () => {
+    window.location.href = 'https://auth.vegvisr.org/gmail/auth';
+  };
+
+  const handleDisconnectGmail = async () => {
+    if (!userEmail) return;
+
+    try {
+      const res = await fetch('https://auth.vegvisr.org/gmail/delete-credentials', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_email: userEmail }),
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        setGmailConnected(false);
+        setGmailEmail(null);
+        setStatus('Gmail disconnected successfully');
+      }
+    } catch (error) {
+      setStatus('Failed to disconnect Gmail');
     }
   };
 
@@ -452,6 +524,54 @@ export function EmailSettings({ userEmail, onClose }: Props) {
         {status && (
           <p className="mt-4 text-center text-sm text-emerald-600">{status}</p>
         )}
+
+        <Divider className="my-6" soft />
+
+        {/* Gmail Inbox Sync */}
+        <section className="space-y-4">
+          <div className="space-y-1">
+            <Subheading>Gmail Inbox Sync</Subheading>
+            <Text>
+              Connect your Gmail account to automatically sync your Gmail inbox to vemail.
+              Emails are synced every 5 minutes and appear in your unified inbox.
+            </Text>
+          </div>
+
+          <div className="flex items-center justify-between rounded-lg border border-zinc-200 bg-zinc-50 p-4">
+            <div className="flex items-center gap-3">
+              <Mail className="size-5 text-zinc-400" />
+              <div>
+                {gmailConnected ? (
+                  <>
+                    <div className="flex items-center gap-2">
+                      <Badge color="emerald">Connected</Badge>
+                      <span className="text-sm text-zinc-600">{gmailEmail}</span>
+                    </div>
+                    <p className="mt-1 text-xs text-zinc-500">
+                      Gmail inbox syncing automatically
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <span className="text-sm font-medium text-zinc-900">Gmail Account</span>
+                    <p className="text-xs text-zinc-500">Not connected</p>
+                  </>
+                )}
+              </div>
+            </div>
+
+            {gmailConnected ? (
+              <Button plain onClick={handleDisconnectGmail}>
+                Disconnect
+              </Button>
+            ) : (
+              <Button color="sky" onClick={handleConnectGmail}>
+                <Mail className="size-4" />
+                Connect Gmail
+              </Button>
+            )}
+          </div>
+        </section>
 
         <Divider className="my-6" soft />
 
