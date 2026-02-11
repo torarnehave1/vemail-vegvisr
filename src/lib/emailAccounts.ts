@@ -207,6 +207,7 @@ export async function syncAllAccountsToCloud(
           aliases: a.aliases,
           isDefault: a.isDefault,
           hasPassword: a.hasPassword,
+          accountType: a.accountType,
         })),
       }),
     });
