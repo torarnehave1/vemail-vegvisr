@@ -9,6 +9,7 @@ export type EmailAccount = {
   isDefault: boolean;
   hasPassword: boolean;
   storeUrl: string;
+  accountType?: 'gmail' | 'vegvisr' | 'smtp'; // gmail = Gmail with app password, vegvisr = @vegvisr.org SMTP, smtp = generic SMTP
 };
 
 // --- localStorage: metadata only, never passwords ---
@@ -159,8 +160,12 @@ export async function sendEmail(
     return { success: false, error: 'No email account configured. Go to Settings to add one.' };
   }
 
+  // Route to correct endpoint based on account type
+  const accountType = account.accountType || 'gmail';
+  const endpoint = accountType === 'gmail' ? '/send-gmail-email' : '/send-email';
+
   try {
-    const res = await fetch(`${VEMAIL_WORKER}/send-email`, {
+    const res = await fetch(`${VEMAIL_WORKER}${endpoint}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

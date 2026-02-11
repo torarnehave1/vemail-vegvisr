@@ -37,6 +37,7 @@ const emptyForm = {
   name: '',
   email: '',
   appPassword: '',
+  accountType: 'gmail' as 'gmail' | 'vegvisr' | 'smtp',
 };
 
 export function EmailSettings({ userEmail, onClose }: Props) {
@@ -81,6 +82,7 @@ export function EmailSettings({ userEmail, onClose }: Props) {
       name: account.name,
       email: account.email,
       appPassword: '',
+      accountType: account.accountType || 'gmail',
     });
   };
 
@@ -96,6 +98,7 @@ export function EmailSettings({ userEmail, onClose }: Props) {
         isDefault: false,
         hasPassword: !!password,
         storeUrl: '',
+        accountType: form.accountType,
       });
       setAccounts(updated);
       const newAccount = updated[updated.length - 1];
@@ -107,6 +110,7 @@ export function EmailSettings({ userEmail, onClose }: Props) {
       const updated = updateAccount(editing, {
         name: form.name,
         email: form.email,
+        accountType: form.accountType,
         ...(password ? { hasPassword: true } : {}),
       });
       setAccounts(updated);
@@ -190,8 +194,7 @@ export function EmailSettings({ userEmail, onClose }: Props) {
           <div className="space-y-1">
             <Subheading>Email Accounts</Subheading>
             <Text>
-              Add your Gmail accounts to send emails. Each account needs a
-              Google App Password.
+              Add your email accounts to send emails. Supports Gmail (with App Password) and @vegvisr.org accounts.
             </Text>
           </div>
           <div className="space-y-3">
@@ -210,6 +213,8 @@ export function EmailSettings({ userEmail, onClose }: Props) {
                       {account.name || account.email}
                     </span>
                     {account.isDefault && <Badge color="sky">Default</Badge>}
+                    {account.accountType === 'vegvisr' && <Badge color="purple">@vegvisr.org</Badge>}
+                    {account.accountType === 'gmail' && <Badge color="zinc">Gmail</Badge>}
                   </div>
                   <span className="text-xs text-zinc-500">{account.email}</span>
                   {account.hasPassword && (
@@ -347,20 +352,43 @@ export function EmailSettings({ userEmail, onClose }: Props) {
                   {adding ? 'Add Account' : 'Edit Account'}
                 </Subheading>
                 <Text>
-                  Enter your Gmail address and a Google App Password. You can
-                  generate an App Password at{' '}
-                  <a
-                    href="https://myaccount.google.com/apppasswords"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-sky-600 underline"
-                  >
-                    myaccount.google.com/apppasswords
-                  </a>
-                  .
+                  {form.accountType === 'gmail' ? (
+                    <>
+                      Enter your Gmail address and a Google App Password. You can generate an App Password at{' '}
+                      <a
+                        href="https://myaccount.google.com/apppasswords"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sky-600 underline"
+                      >
+                        myaccount.google.com/apppasswords
+                      </a>
+                      .
+                    </>
+                  ) : (
+                    'Enter your @vegvisr.org email address and SMTP password.'
+                  )}
                 </Text>
               </div>
               <div className="space-y-4">
+                <Field>
+                  <Label>Account Type</Label>
+                  <Description>
+                    Select Gmail for Google accounts with App Password, or @vegvisr.org for domain SMTP.
+                  </Description>
+                  <select
+                    value={form.accountType}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, accountType: e.target.value as 'gmail' | 'vegvisr' | 'smtp' }))
+                    }
+                    title="Account Type"
+                    className="block w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
+                  >
+                    <option value="gmail">Gmail (App Password)</option>
+                    <option value="vegvisr">@vegvisr.org (SMTP)</option>
+                  </select>
+                </Field>
+
                 <Field>
                   <Label>Display Name</Label>
                   <Description>
@@ -384,16 +412,18 @@ export function EmailSettings({ userEmail, onClose }: Props) {
                     onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
                       setForm((f) => ({ ...f, email: e.target.value }))
                     }
-                    placeholder="you@gmail.com"
+                    placeholder={form.accountType === 'gmail' ? 'you@gmail.com' : 'you@vegvisr.org'}
                   />
                 </Field>
 
                 <Field>
-                  <Label>App Password</Label>
+                  <Label>{form.accountType === 'gmail' ? 'App Password' : 'SMTP Password'}</Label>
                   <Description>
                     {editing
                       ? 'Leave blank to keep the existing password, or enter a new one.'
-                      : '16-character password from Google (not your regular password).'}
+                      : form.accountType === 'gmail'
+                      ? '16-character password from Google (not your regular password).'
+                      : 'Your SMTP password for sending via smtp.vegvisr.org.'}
                   </Description>
                   <Input
                     type="password"
@@ -401,7 +431,7 @@ export function EmailSettings({ userEmail, onClose }: Props) {
                     onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
                       setForm((f) => ({ ...f, appPassword: e.target.value }))
                     }
-                    placeholder="xxxx xxxx xxxx xxxx"
+                    placeholder={form.accountType === 'gmail' ? 'xxxx xxxx xxxx xxxx' : 'SMTP password'}
                   />
                 </Field>
 
@@ -430,10 +460,10 @@ export function EmailSettings({ userEmail, onClose }: Props) {
           <div className="space-y-1">
             <Subheading>How It Works</Subheading>
             <Text>
-              Emails are sent through your Gmail account using Google App
-              Passwords. Your app passwords are stored securely on the server
-              — they are never kept in your browser. Aliases must be configured
-              in your Gmail &ldquo;Send mail as&rdquo; settings first.
+              <strong>Gmail accounts:</strong> Use Google App Passwords to send via Gmail SMTP.{' '}
+              <strong>@vegvisr.org accounts:</strong> Use your domain SMTP password to send via smtp.vegvisr.org.
+              All passwords are stored securely on the server — never in your browser.
+              Aliases must be configured in your email provider settings first.
             </Text>
           </div>
           <div />

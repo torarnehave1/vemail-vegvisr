@@ -30,6 +30,7 @@ import {
   Eye,
   ImageIcon,
 } from 'lucide-react';
+import { getAccounts, type EmailAccount } from '../lib/emailAccounts';
 
 type Props = {
   onClose: () => void;
@@ -41,6 +42,7 @@ type Props = {
     body: string;
     bodyHtml: string;
     attachments: File[];
+    fromAccountId?: string;
   }) => void;
 };
 
@@ -53,7 +55,19 @@ export function ComposeView({ onClose, onSend }: Props) {
   const [attachments, setAttachments] = useState<File[]>([]);
   const [viewMode, setViewMode] = useState<'rich' | 'html'>('rich');
   const [htmlSource, setHtmlSource] = useState('');
+  const [fromAccountId, setFromAccountId] = useState<string | null>(null);
+  const [accounts, setAccounts] = useState<EmailAccount[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Load accounts on mount
+  useState(() => {
+    const accts = getAccounts();
+    setAccounts(accts);
+    const defaultAccount = accts.find((a) => a.isDefault) || accts[0];
+    if (defaultAccount) {
+      setFromAccountId(defaultAccount.id);
+    }
+  });
 
   // Custom input rule: ![alt](url) → image node
   const markdownImageRule = new InputRule({
@@ -116,7 +130,7 @@ export function ComposeView({ onClose, onSend }: Props) {
   const handleSend = () => {
     const bodyHtml = editor?.getHTML() ?? '';
     const body = editor?.getText() ?? '';
-    onSend({ to, cc, bcc, subject, body, bodyHtml, attachments });
+    onSend({ to, cc, bcc, subject, body, bodyHtml, attachments, fromAccountId: fromAccountId || undefined });
   };
 
   const formatSize = (bytes: number): string => {
@@ -201,6 +215,26 @@ export function ComposeView({ onClose, onSend }: Props) {
 
       {/* Recipient fields */}
       <div className="space-y-0 px-6">
+        {/* From (if multiple accounts) */}
+        {accounts.length > 1 && (
+          <div className="flex items-center border-b border-zinc-950/5 py-2">
+            <label className="w-12 shrink-0 text-sm text-zinc-500">From</label>
+            <select
+              value={fromAccountId || ''}
+              onChange={(e) => setFromAccountId(e.target.value)}
+              title="Select sender account"
+              className="flex-1 bg-transparent text-sm text-zinc-950 focus:outline-none"
+            >
+              {accounts.map((account) => (
+                <option key={account.id} value={account.id}>
+                  {account.name || account.email} ({account.email})
+                  {account.accountType === 'vegvisr' ? ' [SMTP]' : ' [Gmail]'}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
         {/* To */}
         <div className="flex items-center border-b border-zinc-950/5 py-2">
           <label className="w-12 shrink-0 text-sm text-zinc-500">To</label>
@@ -213,6 +247,7 @@ export function ComposeView({ onClose, onSend }: Props) {
           />
           <button
             type="button"
+            title="Show CC/BCC fields"
             onClick={() => setShowCcBcc(!showCcBcc)}
             className="ml-2 flex items-center gap-1 text-xs text-zinc-400 hover:text-zinc-600"
           >
@@ -397,6 +432,7 @@ export function ComposeView({ onClose, onSend }: Props) {
                 <span className="text-zinc-400">{formatSize(file.size)}</span>
                 <button
                   type="button"
+                  title={`Remove ${file.name}`}
                   onClick={() => removeAttachment(index)}
                   className="ml-1 text-zinc-400 hover:text-zinc-600"
                 >
@@ -422,6 +458,8 @@ export function ComposeView({ onClose, onSend }: Props) {
             type="file"
             multiple
             onChange={handleFileChange}
+            title="Attach files"
+            aria-label="Attach files"
             className="hidden"
           />
           <Button outline onClick={handleAttach}>

@@ -405,6 +405,7 @@ function App() {
                     if (!authUser?.email) return;
                     setSendStatus(null);
                     const result = await sendEmail(authUser.email, {
+                      accountId: email.fromAccountId,
                       to: email.to,
                       subject: email.subject,
                       html: email.bodyHtml,
