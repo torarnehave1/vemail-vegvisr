@@ -1,5 +1,5 @@
 const STORAGE_KEY = 'vemail_accounts';
-const VEMAIL_WORKER = 'https://cookie.vegvisr.org';
+const VEMAIL_WORKER = 'https://vemail-api.vegvisr.org';
 
 export type EmailAccount = {
   id: string;
