@@ -95,9 +95,11 @@ export function EmailView({ email }: Props) {
         <Divider soft className="my-6" />
 
         {/<[a-z][\s\S]*>/i.test(email.body) ? (
-          <div
-            className="prose prose-sm max-w-none text-zinc-700 dark:text-zinc-300"
-            dangerouslySetInnerHTML={{ __html: email.body }}
+          <iframe
+            title="Email body"
+            className="h-[60vh] w-full rounded-md border border-zinc-200 bg-white"
+            sandbox=""
+            srcDoc={email.body}
           />
         ) : (
           <div className="whitespace-pre-wrap text-sm/6 text-zinc-700 dark:text-zinc-300">
