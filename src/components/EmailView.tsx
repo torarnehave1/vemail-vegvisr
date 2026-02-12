@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import { Reply, Forward, Archive, Trash2, MoreHorizontal, Paperclip } from 'lucide-react';
 import { Avatar } from './catalyst/avatar';
 import { Button } from './catalyst/button';
@@ -30,6 +31,44 @@ function getInitials(name: string): string {
 }
 
 export function EmailView({ email }: Props) {
+  const iframeRef = useRef<HTMLIFrameElement | null>(null);
+
+  useEffect(() => {
+    const iframe = iframeRef.current;
+    if (!iframe || !email) return;
+
+    const bindIframeKeys = () => {
+      const win = iframe.contentWindow;
+      if (!win) return;
+
+      const forwardArrowKeys = (event: KeyboardEvent) => {
+        if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
+        event.preventDefault();
+        window.dispatchEvent(
+          new KeyboardEvent('keydown', {
+            key: event.key,
+            bubbles: true,
+          })
+        );
+      };
+
+      win.addEventListener('keydown', forwardArrowKeys);
+      return () => win.removeEventListener('keydown', forwardArrowKeys);
+    };
+
+    let cleanup = bindIframeKeys();
+    const onLoad = () => {
+      if (cleanup) cleanup();
+      cleanup = bindIframeKeys();
+    };
+
+    iframe.addEventListener('load', onLoad);
+    return () => {
+      iframe.removeEventListener('load', onLoad);
+      if (cleanup) cleanup();
+    };
+  }, [email?.id]);
+
   if (!email) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3 text-zinc-400 dark:text-zinc-500">
@@ -96,9 +135,10 @@ export function EmailView({ email }: Props) {
 
         {/<[a-z][\s\S]*>/i.test(email.body) ? (
           <iframe
+            ref={iframeRef}
             title="Email body"
             className="h-[60vh] w-full rounded-md border border-zinc-200 bg-white"
-            sandbox=""
+            sandbox="allow-same-origin"
             srcDoc={email.body}
           />
         ) : (
