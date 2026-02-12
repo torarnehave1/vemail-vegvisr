@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AuthBar, EcosystemNav, LanguageSelector } from 'vegvisr-ui-kit';
 import appLogo from './assets/app-logo.png';
 import { LanguageContext } from './lib/LanguageContext';
@@ -92,7 +92,7 @@ function App() {
     return () => { cancelled = true; };
   }, [mailboxEmail, mailboxStoreUrl, activeFolder, inboxRefreshTick]);
 
-  const loadMoreEmails = async () => {
+  const loadMoreEmails = useCallback(async () => {
     if (!mailboxEmail || emailsLoading || emailsLoadingMore || !emailsHasMore) return;
     setEmailsLoadingMore(true);
     const nextBatch = await fetchEmails(
@@ -110,7 +110,54 @@ function App() {
     });
     setEmailsHasMore(nextBatch.length === EMAIL_PAGE_SIZE);
     setEmailsLoadingMore(false);
-  };
+  }, [mailboxEmail, emailsLoading, emailsLoadingMore, emailsHasMore, activeFolder, emails.length, mailboxStoreUrl]);
+
+  useEffect(() => {
+    if (activeView !== 'email') return;
+
+    const isTypingContext = (target: EventTarget | null) => {
+      const el = target as HTMLElement | null;
+      if (!el) return false;
+      const tag = el.tagName?.toLowerCase();
+      return tag === 'input' || tag === 'textarea' || el.isContentEditable;
+    };
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (isTypingContext(event.target)) return;
+      if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
+      if (emails.length === 0) return;
+
+      event.preventDefault();
+
+      const currentIndex = selectedEmailId
+        ? emails.findIndex((e) => e.id === selectedEmailId)
+        : -1;
+
+      if (event.key === 'ArrowDown') {
+        if (currentIndex === -1) {
+          setSelectedEmailId(emails[0].id);
+          return;
+        }
+        if (currentIndex < emails.length - 1) {
+          setSelectedEmailId(emails[currentIndex + 1].id);
+          return;
+        }
+        if (emailsHasMore && !emailsLoadingMore) {
+          loadMoreEmails();
+        }
+        return;
+      }
+
+      if (currentIndex <= 0) {
+        setSelectedEmailId(emails[0].id);
+        return;
+      }
+      setSelectedEmailId(emails[currentIndex - 1].id);
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [activeView, emails, selectedEmailId, emailsHasMore, emailsLoadingMore, loadMoreEmails]);
 
   // Fetch full email (with HTML body from R2) when selection changes
   useEffect(() => {
