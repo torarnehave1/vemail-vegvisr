@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import { Star } from 'lucide-react';
 import { Avatar } from './catalyst/avatar';
 import { Badge } from './catalyst/badge';
@@ -49,6 +50,16 @@ export function EmailList({
   loadingMore = false,
   onLoadMore,
 }: Props) {
+  const itemRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+
+  useEffect(() => {
+    if (!selectedId) return;
+    const node = itemRefs.current[selectedId];
+    if (!node) return;
+    node.scrollIntoView({ block: 'nearest' });
+    node.focus({ preventScroll: true });
+  }, [selectedId]);
+
   if (loading) {
     return (
       <div className="flex h-full items-center justify-center p-6 text-sm text-zinc-400">
@@ -69,12 +80,16 @@ export function EmailList({
     <div className="flex h-full flex-col overflow-y-auto">
       {emails.map((email) => (
         <button
+          ref={(el) => {
+            itemRefs.current[email.id] = el;
+          }}
           type="button"
           key={email.id}
           onClick={() => onSelect(email.id)}
+          aria-selected={selectedId === email.id}
           className={`flex w-full flex-col gap-1 border-b border-zinc-950/5 px-4 py-3 text-left transition-colors dark:border-white/5 ${
             selectedId === email.id
-              ? 'bg-zinc-950/5 dark:bg-white/5'
+              ? 'bg-sky-50 ring-1 ring-sky-300 dark:bg-sky-950/30 dark:ring-sky-700'
               : 'hover:bg-zinc-950/2.5 dark:hover:bg-white/2.5'
           }`}
         >
