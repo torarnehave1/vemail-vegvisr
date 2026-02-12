@@ -45,6 +45,7 @@ function App() {
   const [emailsHasMore, setEmailsHasMore] = useState(false);
   const [selectedEmail, setSelectedEmail] = useState<Email | null>(null);
   const [activeAccount, setActiveAccount] = useState<EmailAccount | null>(null);
+  const [availableAccounts, setAvailableAccounts] = useState<EmailAccount[]>([]);
   const [inboxRefreshTick, setInboxRefreshTick] = useState(0);
   const [emailListWidth, setEmailListWidth] = useState(320);
   const [isResizingList, setIsResizingList] = useState(false);
@@ -55,17 +56,22 @@ function App() {
   useEffect(() => {
     if (!authUser?.email) {
       setActiveAccount(null);
+      setAvailableAccounts([]);
       return;
     }
     // Try local first, then cloud
     const local = getAccounts();
     if (local.length > 0) {
+      setAvailableAccounts(local);
       setActiveAccount(local.find((a) => a.isDefault) || local[0]);
       return;
     }
     loadAccountsFromCloud(authUser.email).then((cloud) => {
       if (cloud && cloud.length > 0) {
+        setAvailableAccounts(cloud);
         setActiveAccount(cloud.find((a) => a.isDefault) || cloud[0]);
+      } else {
+        setAvailableAccounts([]);
       }
     });
   }, [authUser?.email]);
@@ -505,6 +511,30 @@ function App() {
             className="shrink-0 border-r border-zinc-950/5 bg-white"
             style={{ width: `${emailListWidth}px` }}
           >
+            {availableAccounts.length > 0 && (
+              <div className="border-b border-zinc-950/5 px-3 py-2">
+                <label htmlFor="inbox-account-switch" className="mb-1 block text-xs font-medium text-zinc-500">
+                  Inbox account
+                </label>
+                <select
+                  id="inbox-account-switch"
+                  value={activeAccount?.id || ''}
+                  onChange={(event) => {
+                    const next = availableAccounts.find((a) => a.id === event.target.value) || null;
+                    setActiveAccount(next);
+                    setSelectedEmailId(null);
+                    setSelectedEmail(null);
+                  }}
+                  className="block w-full rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm text-zinc-800 focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
+                >
+                  {availableAccounts.map((account) => (
+                    <option key={account.id} value={account.id}>
+                      {account.name ? `${account.name} (${account.email})` : account.email}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
             <EmailList
               emails={emails}
               selectedId={selectedEmailId}
