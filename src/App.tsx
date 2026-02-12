@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { AuthBar, EcosystemNav, LanguageSelector } from 'vegvisr-ui-kit';
 import appLogo from './assets/app-logo.png';
 import { LanguageContext } from './lib/LanguageContext';
@@ -23,6 +23,9 @@ const MAGIC_BASE = 'https://cookie.vegvisr.org';
 const DASHBOARD_BASE = 'https://dashboard.vegvisr.org';
 
 function App() {
+  const EMAIL_PAGE_SIZE = 100;
+  const MIN_EMAIL_LIST_WIDTH = 260;
+  const MAX_EMAIL_LIST_WIDTH = 700;
   const [language, setLanguageState] = useState(getStoredLanguage());
   const [authUser, setAuthUser] = useState<AuthUser | null>(null);
   const [authStatus, setAuthStatus] = useState<'checking' | 'authed' | 'anonymous'>('checking');
@@ -38,9 +41,15 @@ function App() {
   const [sendStatus, setSendStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [emails, setEmails] = useState<Email[]>([]);
   const [emailsLoading, setEmailsLoading] = useState(false);
+  const [emailsLoadingMore, setEmailsLoadingMore] = useState(false);
+  const [emailsHasMore, setEmailsHasMore] = useState(false);
   const [selectedEmail, setSelectedEmail] = useState<Email | null>(null);
   const [activeAccount, setActiveAccount] = useState<EmailAccount | null>(null);
   const [inboxRefreshTick, setInboxRefreshTick] = useState(0);
+  const [emailListWidth, setEmailListWidth] = useState(320);
+  const [isResizingList, setIsResizingList] = useState(false);
+  const resizeStartXRef = useRef(0);
+  const resizeStartWidthRef = useRef(320);
 
   // Load email accounts when user authenticates
   useEffect(() => {
@@ -70,15 +79,38 @@ function App() {
     if (!mailboxEmail) return;
     let cancelled = false;
     setEmailsLoading(true);
+    setEmailsLoadingMore(false);
+    setEmailsHasMore(false);
     setEmails([]);
-    fetchEmails(mailboxEmail, activeFolder, 50, 0, mailboxStoreUrl).then((stored) => {
+    fetchEmails(mailboxEmail, activeFolder, EMAIL_PAGE_SIZE, 0, mailboxStoreUrl).then((stored) => {
       if (!cancelled) {
         setEmails(stored.map((s) => toEmail(s)));
+        setEmailsHasMore(stored.length === EMAIL_PAGE_SIZE);
         setEmailsLoading(false);
       }
     });
     return () => { cancelled = true; };
   }, [mailboxEmail, mailboxStoreUrl, activeFolder, inboxRefreshTick]);
+
+  const loadMoreEmails = async () => {
+    if (!mailboxEmail || emailsLoading || emailsLoadingMore || !emailsHasMore) return;
+    setEmailsLoadingMore(true);
+    const nextBatch = await fetchEmails(
+      mailboxEmail,
+      activeFolder,
+      EMAIL_PAGE_SIZE,
+      emails.length,
+      mailboxStoreUrl
+    );
+    const nextMapped = nextBatch.map((s) => toEmail(s));
+    setEmails((prev) => {
+      const seen = new Set(prev.map((e) => e.id));
+      const appended = nextMapped.filter((e) => !seen.has(e.id));
+      return [...prev, ...appended];
+    });
+    setEmailsHasMore(nextBatch.length === EMAIL_PAGE_SIZE);
+    setEmailsLoadingMore(false);
+  };
 
   // Fetch full email (with HTML body from R2) when selection changes
   useEffect(() => {
@@ -286,6 +318,41 @@ function App() {
     };
   }, []);
 
+  useEffect(() => {
+    if (!isResizingList) return;
+
+    const handleMouseMove = (event: MouseEvent) => {
+      const delta = event.clientX - resizeStartXRef.current;
+      const next = Math.min(
+        MAX_EMAIL_LIST_WIDTH,
+        Math.max(MIN_EMAIL_LIST_WIDTH, resizeStartWidthRef.current + delta)
+      );
+      setEmailListWidth(next);
+    };
+
+    const handleMouseUp = () => {
+      setIsResizingList(false);
+    };
+
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+
+    return () => {
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isResizingList]);
+
+  const startListResize = (event: React.MouseEvent<HTMLDivElement>) => {
+    resizeStartXRef.current = event.clientX;
+    resizeStartWidthRef.current = emailListWidth;
+    setIsResizingList(true);
+  };
+
   const handleFolderChange = (key: string) => {
     setActiveFolder(key);
     setSelectedEmailId(null);
@@ -387,14 +454,29 @@ function App() {
           </div>
 
           {/* Email list */}
-          <div className="w-80 shrink-0 border-r border-zinc-950/5 bg-white">
+          <div
+            className="shrink-0 border-r border-zinc-950/5 bg-white"
+            style={{ width: `${emailListWidth}px` }}
+          >
             <EmailList
               emails={emails}
               selectedId={selectedEmailId}
               onSelect={(id) => { setSelectedEmailId(id); setActiveView('email'); }}
               loading={emailsLoading}
+              hasMore={emailsHasMore}
+              loadingMore={emailsLoadingMore}
+              onLoadMore={loadMoreEmails}
             />
           </div>
+
+          {/* Resize handle between email list and email content */}
+          <div
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="Resize email list"
+            onMouseDown={startListResize}
+            className="w-1 shrink-0 cursor-col-resize bg-zinc-100 hover:bg-zinc-300"
+          />
 
           {/* Email content / Compose / Settings */}
           <div className="min-w-0 flex-1 bg-zinc-50">

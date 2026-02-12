@@ -8,6 +8,9 @@ type Props = {
   selectedId: string | null;
   onSelect: (id: string) => void;
   loading?: boolean;
+  hasMore?: boolean;
+  loadingMore?: boolean;
+  onLoadMore?: () => void;
 };
 
 function formatDate(iso: string): string {
@@ -37,7 +40,15 @@ const labelColorMap: Record<string, 'violet' | 'emerald' | 'zinc' | 'sky' | 'amb
   meeting: 'sky',
 };
 
-export function EmailList({ emails, selectedId, onSelect, loading }: Props) {
+export function EmailList({
+  emails,
+  selectedId,
+  onSelect,
+  loading,
+  hasMore = false,
+  loadingMore = false,
+  onLoadMore,
+}: Props) {
   if (loading) {
     return (
       <div className="flex h-full items-center justify-center p-6 text-sm text-zinc-400">
@@ -117,6 +128,18 @@ export function EmailList({ emails, selectedId, onSelect, loading }: Props) {
           </div>
         </button>
       ))}
+      {hasMore && (
+        <div className="border-t border-zinc-950/5 p-3">
+          <button
+            type="button"
+            onClick={onLoadMore}
+            disabled={loadingMore}
+            className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-700 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {loadingMore ? 'Loading more...' : 'Load more'}
+          </button>
+        </div>
+      )}
     </div>
   );
 }
