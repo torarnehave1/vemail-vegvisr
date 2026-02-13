@@ -4,7 +4,7 @@ import appLogo from './assets/app-logo.png';
 import { LanguageContext } from './lib/LanguageContext';
 import { readStoredUser, type AuthUser } from './lib/auth';
 import { sendEmail, getAccounts, loadAccountsFromCloud, type EmailAccount } from './lib/emailAccounts';
-import { fetchEmails, fetchEmail, toEmail } from './lib/emailStore';
+import { deleteEmail, fetchEmails, fetchEmail, toEmail, updateEmail } from './lib/emailStore';
 import { getStoredLanguage, setStoredLanguage } from './lib/storage';
 import { useTranslation } from './lib/useTranslation';
 import { EmailSidebar } from './components/EmailSidebar';
@@ -37,8 +37,13 @@ function App() {
 
   const [activeFolder, setActiveFolder] = useState('inbox');
   const [selectedEmailId, setSelectedEmailId] = useState<string | null>(null);
+  const [selectedEmailIds, setSelectedEmailIds] = useState<string[]>([]);
   const [activeView, setActiveView] = useState<'email' | 'compose' | 'settings'>('email');
   const [sendStatus, setSendStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [deleteUndoState, setDeleteUndoState] = useState<{
+    ids: string[];
+    previousFolders: Record<string, string>;
+  } | null>(null);
   const [emails, setEmails] = useState<Email[]>([]);
   const [emailsLoading, setEmailsLoading] = useState(false);
   const [emailsLoadingMore, setEmailsLoadingMore] = useState(false);
@@ -51,6 +56,7 @@ function App() {
   const [isResizingList, setIsResizingList] = useState(false);
   const resizeStartXRef = useRef(0);
   const resizeStartWidthRef = useRef(320);
+  const undoTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Load email accounts when user authenticates
   useEffect(() => {
@@ -88,6 +94,7 @@ function App() {
     setEmailsLoadingMore(false);
     setEmailsHasMore(false);
     setEmails([]);
+    setSelectedEmailIds([]);
     fetchEmails(mailboxEmail, activeFolder, EMAIL_PAGE_SIZE, 0, mailboxStoreUrl).then((stored) => {
       if (!cancelled) {
         setEmails(stored.map((s) => toEmail(s)));
@@ -118,6 +125,162 @@ function App() {
     setEmailsLoadingMore(false);
   }, [mailboxEmail, emailsLoading, emailsLoadingMore, emailsHasMore, activeFolder, emails.length, mailboxStoreUrl]);
 
+  const dismissDeleteUndo = useCallback(() => {
+    if (undoTimeoutRef.current) {
+      clearTimeout(undoTimeoutRef.current);
+      undoTimeoutRef.current = null;
+    }
+    setDeleteUndoState(null);
+  }, []);
+
+  const showDeleteUndo = useCallback((ids: string[], previousFolders: Record<string, string>) => {
+    dismissDeleteUndo();
+    setDeleteUndoState({ ids, previousFolders });
+    undoTimeoutRef.current = setTimeout(() => {
+      undoTimeoutRef.current = null;
+      setDeleteUndoState(null);
+    }, 8000);
+  }, [dismissDeleteUndo]);
+
+  useEffect(() => {
+    return () => {
+      if (undoTimeoutRef.current) {
+        clearTimeout(undoTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  const moveEmailsToFolder = useCallback(async (ids: string[], targetFolder: string) => {
+    if (!mailboxEmail) return { successIds: [] as string[], previousFolders: {} as Record<string, string> };
+
+    const uniqueIds = Array.from(new Set(ids));
+    if (uniqueIds.length === 0) {
+      return { successIds: [] as string[], previousFolders: {} as Record<string, string> };
+    }
+
+    const previousFolders = uniqueIds.reduce<Record<string, string>>((acc, id) => {
+      const email = emails.find((item) => item.id === id);
+      if (email) acc[id] = email.folder;
+      return acc;
+    }, {});
+
+    const results = await Promise.allSettled(
+      uniqueIds.map((id) => updateEmail(mailboxEmail, id, { folder: targetFolder }, mailboxStoreUrl))
+    );
+    const successIds = uniqueIds.filter((_, index) => {
+      const result = results[index];
+      return result.status === 'fulfilled' && result.value;
+    });
+
+    if (successIds.length === 0) {
+      return { successIds, previousFolders: {} as Record<string, string> };
+    }
+
+    const movedSet = new Set(successIds);
+    if (activeFolder === targetFolder) {
+      setEmails((prev) =>
+        prev.map((email) => (movedSet.has(email.id) ? { ...email, folder: targetFolder } : email))
+      );
+      setSelectedEmail((current) =>
+        current && movedSet.has(current.id) ? { ...current, folder: targetFolder } : current
+      );
+    } else {
+      setEmails((prev) => prev.filter((email) => !movedSet.has(email.id)));
+      setSelectedEmailId((current) => (current && movedSet.has(current) ? null : current));
+      setSelectedEmail((current) => (current && movedSet.has(current.id) ? null : current));
+    }
+
+    setSelectedEmailIds((prev) => prev.filter((id) => !movedSet.has(id)));
+    setInboxRefreshTick((v) => v + 1);
+
+    const successfulPreviousFolders = successIds.reduce<Record<string, string>>((acc, id) => {
+      acc[id] = previousFolders[id] || 'inbox';
+      return acc;
+    }, {});
+    return { successIds, previousFolders: successfulPreviousFolders };
+  }, [activeFolder, emails, mailboxEmail, mailboxStoreUrl]);
+
+  const handleDeleteForever = useCallback(async (ids: string[]) => {
+    if (!mailboxEmail) return;
+    const uniqueIds = Array.from(new Set(ids));
+    if (uniqueIds.length === 0) return;
+
+    const confirmMessage =
+      uniqueIds.length === 1
+        ? 'Delete this email forever? This cannot be undone.'
+        : `Delete ${uniqueIds.length} emails forever? This cannot be undone.`;
+
+    if (!window.confirm(confirmMessage)) return;
+
+    const results = await Promise.allSettled(
+      uniqueIds.map((id) => deleteEmail(mailboxEmail, id, mailboxStoreUrl))
+    );
+    const successIds = uniqueIds.filter((_, index) => {
+      const result = results[index];
+      return result.status === 'fulfilled' && result.value;
+    });
+
+    if (successIds.length === 0) return;
+
+    const removedSet = new Set(successIds);
+    setEmails((prev) => prev.filter((email) => !removedSet.has(email.id)));
+    setSelectedEmailIds((prev) => prev.filter((id) => !removedSet.has(id)));
+    setSelectedEmailId((current) => (current && removedSet.has(current) ? null : current));
+    setSelectedEmail((current) => (current && removedSet.has(current.id) ? null : current));
+    setInboxRefreshTick((v) => v + 1);
+    dismissDeleteUndo();
+  }, [dismissDeleteUndo, mailboxEmail, mailboxStoreUrl]);
+
+  const handleMoveToTrash = useCallback(async (ids: string[]) => {
+    if (activeFolder === 'trash') {
+      await handleDeleteForever(ids);
+      return;
+    }
+    const { successIds, previousFolders } = await moveEmailsToFolder(ids, 'trash');
+    if (successIds.length > 0) {
+      showDeleteUndo(successIds, previousFolders);
+    }
+  }, [activeFolder, handleDeleteForever, moveEmailsToFolder, showDeleteUndo]);
+
+  const handleArchive = useCallback(async (ids: string[]) => {
+    await moveEmailsToFolder(ids, 'archive');
+  }, [moveEmailsToFolder]);
+
+  const handleRestore = useCallback(async (ids: string[]) => {
+    await moveEmailsToFolder(ids, 'inbox');
+  }, [moveEmailsToFolder]);
+
+  const handleUndoDelete = useCallback(async () => {
+    if (!deleteUndoState || !mailboxEmail) return;
+    const { ids, previousFolders } = deleteUndoState;
+    dismissDeleteUndo();
+    await Promise.allSettled(
+      ids.map((id) =>
+        updateEmail(mailboxEmail, id, { folder: previousFolders[id] || 'inbox' }, mailboxStoreUrl)
+      )
+    );
+    setInboxRefreshTick((v) => v + 1);
+  }, [deleteUndoState, dismissDeleteUndo, mailboxEmail, mailboxStoreUrl]);
+
+  const toggleEmailSelection = useCallback((id: string, checked: boolean) => {
+    setSelectedEmailIds((prev) => {
+      if (checked) return Array.from(new Set([...prev, id]));
+      return prev.filter((item) => item !== id);
+    });
+  }, []);
+
+  const toggleSelectAllVisible = useCallback((checked: boolean) => {
+    setSelectedEmailIds(checked ? emails.map((email) => email.id) : []);
+  }, [emails]);
+
+  const allVisibleSelected =
+    emails.length > 0 && emails.every((email) => selectedEmailIds.includes(email.id));
+
+  useEffect(() => {
+    const visibleIds = new Set(emails.map((email) => email.id));
+    setSelectedEmailIds((prev) => prev.filter((id) => visibleIds.has(id)));
+  }, [emails]);
+
   useEffect(() => {
     if (activeView !== 'email') return;
 
@@ -130,8 +293,26 @@ function App() {
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (isTypingContext(event.target)) return;
-      if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
       if (emails.length === 0) return;
+
+      if (event.key === 'Delete') {
+        const targetIds =
+          selectedEmailIds.length > 0
+            ? selectedEmailIds
+            : selectedEmailId
+              ? [selectedEmailId]
+              : [];
+        if (targetIds.length === 0) return;
+        event.preventDefault();
+        if (activeFolder === 'trash') {
+          void handleDeleteForever(targetIds);
+        } else {
+          void handleMoveToTrash(targetIds);
+        }
+        return;
+      }
+
+      if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
 
       event.preventDefault();
 
@@ -163,7 +344,18 @@ function App() {
 
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [activeView, emails, selectedEmailId, emailsHasMore, emailsLoadingMore, loadMoreEmails]);
+  }, [
+    activeFolder,
+    activeView,
+    emails,
+    selectedEmailId,
+    selectedEmailIds,
+    emailsHasMore,
+    emailsLoadingMore,
+    loadMoreEmails,
+    handleDeleteForever,
+    handleMoveToTrash,
+  ]);
 
   // Fetch full email (with HTML body from R2) when selection changes
   useEffect(() => {
@@ -182,18 +374,18 @@ function App() {
     return () => { cancelled = true; };
   }, [mailboxEmail, mailboxStoreUrl, selectedEmailId]);
 
-  const setLanguage = (value: typeof language) => {
+  const setLanguage = useCallback((value: typeof language) => {
     setLanguageState(value);
     setStoredLanguage(value);
-  };
+  }, []);
 
   const contextValue = useMemo(
     () => ({ language, setLanguage }),
-    [language]
+    [language, setLanguage]
   );
   const t = useTranslation(language);
 
-  const setAuthCookie = (token: string) => {
+  const setAuthCookie = useCallback((token: string) => {
     if (!token) return;
     const isVegvisr = window.location.hostname.endsWith('vegvisr.org');
     const domain = isVegvisr ? '; Domain=.vegvisr.org' : '';
@@ -201,9 +393,9 @@ function App() {
     document.cookie = `vegvisr_token=${encodeURIComponent(
       token
     )}; Path=/; Max-Age=${maxAge}; SameSite=Lax; Secure${domain}`;
-  };
+  }, []);
 
-  const persistUser = (user: {
+  const persistUser = useCallback((user: {
     email: string;
     role: string;
     user_id: string | null;
@@ -235,9 +427,9 @@ function App() {
       email: payload.email,
       role: payload.role || null
     });
-  };
+  }, [setAuthCookie]);
 
-  const fetchUserContext = async (targetEmail: string) => {
+  const fetchUserContext = useCallback(async (targetEmail: string) => {
     const roleRes = await fetch(
       `${DASHBOARD_BASE}/get-role?email=${encodeURIComponent(targetEmail)}`
     );
@@ -267,9 +459,9 @@ function App() {
       branding: userData.branding,
       profileimage: userData.profileimage
     };
-  };
+  }, []);
 
-  const verifyMagicToken = async (token: string) => {
+  const verifyMagicToken = useCallback(async (token: string) => {
     const res = await fetch(
       `${MAGIC_BASE}/login/magic/verify?token=${encodeURIComponent(token)}`,
       { method: 'GET', headers: { 'Content-Type': 'application/json' } }
@@ -289,7 +481,7 @@ function App() {
         emailVerificationToken: null
       });
     }
-  };
+  }, [fetchUserContext, persistUser]);
 
   const sendMagicLink = async () => {
     if (!loginEmail.trim()) return;
@@ -350,7 +542,7 @@ function App() {
       .catch(() => {
         setAuthStatus('anonymous');
       });
-  }, []);
+  }, [verifyMagicToken]);
 
   useEffect(() => {
     let isMounted = true;
@@ -409,6 +601,7 @@ function App() {
   const handleFolderChange = (key: string) => {
     setActiveFolder(key);
     setSelectedEmailId(null);
+    setSelectedEmailIds([]);
   };
 
   // Shared dark header for vegvisr-ui-kit components
@@ -523,6 +716,7 @@ function App() {
                     const next = availableAccounts.find((a) => a.id === event.target.value) || null;
                     setActiveAccount(next);
                     setSelectedEmailId(null);
+                    setSelectedEmailIds([]);
                     setSelectedEmail(null);
                   }}
                   className="block w-full rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm text-zinc-800 focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
@@ -535,10 +729,79 @@ function App() {
                 </select>
               </div>
             )}
+            {emails.length > 0 && (
+              <div className="border-b border-zinc-950/5 px-3 py-2">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={allVisibleSelected}
+                    onChange={(event) => toggleSelectAllVisible(event.target.checked)}
+                    aria-label="Select all visible emails"
+                    className="size-4 rounded border-zinc-300 text-sky-600 focus:ring-sky-500"
+                  />
+                  {selectedEmailIds.length > 0 ? (
+                    <>
+                      <span className="text-xs font-medium text-zinc-700">
+                        {selectedEmailIds.length} selected
+                      </span>
+                      {activeFolder === 'trash' ? (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => void handleRestore(selectedEmailIds)}
+                            className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs font-medium text-zinc-700 hover:bg-zinc-50"
+                          >
+                            Restore
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void handleDeleteForever(selectedEmailIds)}
+                            className="rounded-md border border-rose-300 bg-white px-2 py-1 text-xs font-medium text-rose-700 hover:bg-rose-50"
+                          >
+                            Delete forever
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => void handleArchive(selectedEmailIds)}
+                            className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs font-medium text-zinc-700 hover:bg-zinc-50"
+                          >
+                            Archive
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void handleMoveToTrash(selectedEmailIds)}
+                            className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs font-medium text-zinc-700 hover:bg-zinc-50"
+                          >
+                            Trash
+                          </button>
+                        </>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => setSelectedEmailIds([])}
+                        className="ml-auto text-xs text-zinc-500 hover:text-zinc-700"
+                      >
+                        Clear
+                      </button>
+                    </>
+                  ) : (
+                    <span className="text-xs text-zinc-500">Select</span>
+                  )}
+                </div>
+              </div>
+            )}
             <EmailList
               emails={emails}
+              activeFolder={activeFolder}
               selectedId={selectedEmailId}
+              selectedIds={selectedEmailIds}
               onSelect={(id) => { setSelectedEmailId(id); setActiveView('email'); }}
+              onToggleSelect={toggleEmailSelection}
+              onQuickDelete={(id) => void handleMoveToTrash([id])}
+              onQuickRestore={(id) => void handleRestore([id])}
               loading={emailsLoading}
               hasMore={emailsHasMore}
               loadingMore={emailsLoadingMore}
@@ -593,7 +856,13 @@ function App() {
               </Suspense>
             )}
             {activeView === 'email' && (
-              <EmailView email={selectedEmail} />
+              <EmailView
+                email={selectedEmail}
+                onArchive={(email) => void handleArchive([email.id])}
+                onDelete={(email) => void handleMoveToTrash([email.id])}
+                onRestore={(email) => void handleRestore([email.id])}
+                onDeleteForever={(email) => void handleDeleteForever([email.id])}
+              />
             )}
           </div>
         </div>
@@ -608,6 +877,22 @@ function App() {
             }`}
           >
             {sendStatus.message}
+          </div>
+        )}
+        {deleteUndoState && (
+          <div className="fixed bottom-16 right-4 z-50 flex items-center gap-3 rounded-lg bg-zinc-900 px-4 py-2 text-sm text-white shadow-lg">
+            <span>
+              {deleteUndoState.ids.length === 1
+                ? 'Moved to Trash'
+                : `${deleteUndoState.ids.length} emails moved to Trash`}
+            </span>
+            <button
+              type="button"
+              onClick={() => void handleUndoDelete()}
+              className="font-semibold text-sky-300 hover:text-sky-200"
+            >
+              Undo
+            </button>
           </div>
         )}
       </div>

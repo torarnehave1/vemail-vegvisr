@@ -1,13 +1,18 @@
 import { useEffect, useRef } from 'react';
-import { Star } from 'lucide-react';
+import { RotateCcw, Star, Trash2 } from 'lucide-react';
 import { Avatar } from './catalyst/avatar';
 import { Badge } from './catalyst/badge';
 import type { Email } from '../data/mockEmails';
 
 type Props = {
   emails: Email[];
+  activeFolder: string;
   selectedId: string | null;
+  selectedIds: string[];
   onSelect: (id: string) => void;
+  onToggleSelect: (id: string, checked: boolean) => void;
+  onQuickDelete: (id: string) => void;
+  onQuickRestore: (id: string) => void;
   loading?: boolean;
   hasMore?: boolean;
   loadingMore?: boolean;
@@ -43,14 +48,19 @@ const labelColorMap: Record<string, 'violet' | 'emerald' | 'zinc' | 'sky' | 'amb
 
 export function EmailList({
   emails,
+  activeFolder,
   selectedId,
+  selectedIds,
   onSelect,
+  onToggleSelect,
+  onQuickDelete,
+  onQuickRestore,
   loading,
   hasMore = false,
   loadingMore = false,
   onLoadMore,
 }: Props) {
-  const itemRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+  const itemRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   useEffect(() => {
     if (!selectedId) return;
@@ -79,21 +89,36 @@ export function EmailList({
   return (
     <div className="flex h-full flex-col overflow-y-auto">
       {emails.map((email) => (
-        <button
+        <div
           ref={(el) => {
             itemRefs.current[email.id] = el;
           }}
-          type="button"
           key={email.id}
           onClick={() => onSelect(email.id)}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+              event.preventDefault();
+              onSelect(email.id);
+            }
+          }}
           aria-selected={selectedId === email.id}
-          className={`flex w-full flex-col gap-1 border-b border-zinc-950/5 px-4 py-3 text-left transition-colors dark:border-white/5 ${
+          role="button"
+          tabIndex={0}
+          className={`group flex w-full cursor-pointer flex-col gap-1 border-b border-zinc-950/5 px-4 py-3 text-left transition-colors dark:border-white/5 ${
             selectedId === email.id
               ? 'bg-sky-50 ring-1 ring-sky-300 dark:bg-sky-950/30 dark:ring-sky-700'
               : 'hover:bg-zinc-950/2.5 dark:hover:bg-white/2.5'
           }`}
         >
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={selectedIds.includes(email.id)}
+              onChange={(event) => onToggleSelect(email.id, event.target.checked)}
+              onClick={(event) => event.stopPropagation()}
+              aria-label={`Select email ${email.subject}`}
+              className="size-4 rounded border-zinc-300 text-sky-600 focus:ring-sky-500"
+            />
             <Avatar
               initials={getInitials(email.from.name)}
               className="size-8 bg-zinc-200 text-zinc-600 dark:bg-zinc-700 dark:text-zinc-300"
@@ -111,6 +136,26 @@ export function EmailList({
                 </span>
                 <div className="flex shrink-0 items-center gap-1">
                   {email.starred && <Star className="size-3 fill-amber-400 text-amber-400" />}
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      if (activeFolder === 'trash') {
+                        onQuickRestore(email.id);
+                      } else {
+                        onQuickDelete(email.id);
+                      }
+                    }}
+                    aria-label={activeFolder === 'trash' ? 'Restore email' : 'Move email to Trash'}
+                    title={activeFolder === 'trash' ? 'Restore to Inbox' : 'Move to Trash'}
+                    className="invisible rounded p-1 text-zinc-500 hover:bg-zinc-200 hover:text-zinc-800 group-hover:visible dark:text-zinc-400 dark:hover:bg-zinc-700 dark:hover:text-zinc-100"
+                  >
+                    {activeFolder === 'trash' ? (
+                      <RotateCcw className="size-3.5" />
+                    ) : (
+                      <Trash2 className="size-3.5" />
+                    )}
+                  </button>
                   <span className="text-xs text-zinc-500 dark:text-zinc-400">
                     {formatDate(email.date)}
                   </span>
@@ -141,7 +186,7 @@ export function EmailList({
               </div>
             )}
           </div>
-        </button>
+        </div>
       ))}
       {hasMore && (
         <div className="border-t border-zinc-950/5 p-3">

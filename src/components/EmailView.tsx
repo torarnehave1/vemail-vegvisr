@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { Reply, Forward, Archive, Trash2, MoreHorizontal, Paperclip } from 'lucide-react';
+import { Reply, Forward, Archive, Trash2, MoreHorizontal, Paperclip, RotateCcw } from 'lucide-react';
 import { Avatar } from './catalyst/avatar';
 import { Button } from './catalyst/button';
 import { Heading } from './catalyst/heading';
@@ -9,6 +9,10 @@ import type { Email } from '../data/mockEmails';
 
 type Props = {
   email: Email | null;
+  onArchive?: (email: Email) => void;
+  onDelete?: (email: Email) => void;
+  onRestore?: (email: Email) => void;
+  onDeleteForever?: (email: Email) => void;
 };
 
 function formatFullDate(iso: string): string {
@@ -30,7 +34,7 @@ function getInitials(name: string): string {
     .toUpperCase();
 }
 
-export function EmailView({ email }: Props) {
+export function EmailView({ email, onArchive, onDelete, onRestore, onDeleteForever }: Props) {
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
 
   useEffect(() => {
@@ -67,7 +71,7 @@ export function EmailView({ email }: Props) {
       iframe.removeEventListener('load', onLoad);
       if (cleanup) cleanup();
     };
-  }, [email?.id]);
+  }, [email]);
 
   if (!email) {
     return (
@@ -88,12 +92,25 @@ export function EmailView({ email }: Props) {
         <Button plain>
           <Forward className="size-4" data-slot="icon" />
         </Button>
-        <Button plain>
-          <Archive className="size-4" data-slot="icon" />
-        </Button>
-        <Button plain>
-          <Trash2 className="size-4" data-slot="icon" />
-        </Button>
+        {email.folder === 'trash' ? (
+          <>
+            <Button plain onClick={() => onRestore?.(email)} title="Restore to Inbox">
+              <RotateCcw className="size-4" data-slot="icon" />
+            </Button>
+            <Button plain onClick={() => onDeleteForever?.(email)} title="Delete forever">
+              <Trash2 className="size-4" data-slot="icon" />
+            </Button>
+          </>
+        ) : (
+          <>
+            <Button plain onClick={() => onArchive?.(email)} title="Archive">
+              <Archive className="size-4" data-slot="icon" />
+            </Button>
+            <Button plain onClick={() => onDelete?.(email)} title="Move to Trash">
+              <Trash2 className="size-4" data-slot="icon" />
+            </Button>
+          </>
+        )}
         <div className="flex-1" />
         <Button plain>
           <MoreHorizontal className="size-4" data-slot="icon" />
