@@ -22,6 +22,7 @@ import {
   updateAccount,
   removeAccount,
   setDefaultAccount,
+  replaceLocalAccounts,
   saveAccountToCloud,
   removeAccountFromCloud,
   loadAccountsFromCloud,
@@ -57,15 +58,19 @@ export function EmailSettings({ userEmail, onClose, onGmailSyncComplete }: Props
 
   useEffect(() => {
     const local = getAccounts();
-    if (local.length > 0) {
+    if (!userEmail) {
       setAccounts(local);
-    } else if (userEmail) {
-      loadAccountsFromCloud(userEmail).then((cloud) => {
-        if (cloud && cloud.length > 0) {
-          setAccounts(cloud);
-        }
-      });
+      return;
     }
+
+    loadAccountsFromCloud(userEmail).then((cloud) => {
+      if (cloud && cloud.length > 0) {
+        setAccounts(cloud);
+        replaceLocalAccounts(cloud);
+        return;
+      }
+      setAccounts(local);
+    });
   }, [userEmail]);
 
   // Check Gmail connection status

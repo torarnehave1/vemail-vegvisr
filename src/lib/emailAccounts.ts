@@ -28,6 +28,10 @@ function saveLocal(accounts: EmailAccount[]): void {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(accounts));
 }
 
+export function replaceLocalAccounts(accounts: EmailAccount[]): void {
+  saveLocal(accounts);
+}
+
 export function addAccount(account: Omit<EmailAccount, 'id'>): EmailAccount[] {
   const accounts = getAccounts();
   const newAccount: EmailAccount = {

@@ -3,7 +3,7 @@ import { AuthBar, EcosystemNav, LanguageSelector } from 'vegvisr-ui-kit';
 import appLogo from './assets/app-logo.png';
 import { LanguageContext } from './lib/LanguageContext';
 import { readStoredUser, type AuthUser } from './lib/auth';
-import { sendEmail, getAccounts, loadAccountsFromCloud, type EmailAccount } from './lib/emailAccounts';
+import { sendEmail, getAccounts, loadAccountsFromCloud, replaceLocalAccounts, type EmailAccount } from './lib/emailAccounts';
 import { deleteEmail, fetchEmails, fetchEmail, toEmail, updateEmail } from './lib/emailStore';
 import { getStoredLanguage, setStoredLanguage } from './lib/storage';
 import { useTranslation } from './lib/useTranslation';
@@ -65,19 +65,15 @@ function App() {
       setAvailableAccounts([]);
       return;
     }
-    // Try local first, then cloud
     const local = getAccounts();
-    if (local.length > 0) {
-      setAvailableAccounts(local);
-      setActiveAccount(local.find((a) => a.isDefault) || local[0]);
-      return;
-    }
     loadAccountsFromCloud(authUser.email).then((cloud) => {
       if (cloud && cloud.length > 0) {
+        replaceLocalAccounts(cloud);
         setAvailableAccounts(cloud);
         setActiveAccount(cloud.find((a) => a.isDefault) || cloud[0]);
       } else {
-        setAvailableAccounts([]);
+        setAvailableAccounts(local);
+        setActiveAccount(local.find((a) => a.isDefault) || local[0] || null);
       }
     });
   }, [authUser?.email]);
