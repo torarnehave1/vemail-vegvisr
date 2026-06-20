@@ -1,6 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AuthBar, EcosystemNav, LanguageSelector } from 'vegvisr-ui-kit';
-import appLogo from './assets/app-logo.png';
 import { LanguageContext } from './lib/LanguageContext';
 import { readStoredUser, type AuthUser } from './lib/auth';
 import { sendEmail, getAccounts, loadAccountsFromCloud, replaceLocalAccounts, type EmailAccount } from './lib/emailAccounts';
@@ -604,7 +603,7 @@ function App() {
   const appHeader = (
     <header className="flex shrink-0 items-center justify-between bg-zinc-900 px-4 py-2">
       <div className="flex items-center gap-3">
-        <img src={appLogo} alt={t('app.title')} className="h-8 w-auto" />
+        <img src="https://favicons.vegvisr.org/favicons/1781969399962-1-1781973180769-180x180.png" alt={t('app.title')} className="h-8 w-auto" />
         <EcosystemNav />
       </div>
       <div className="flex items-center gap-3">
