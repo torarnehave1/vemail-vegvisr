@@ -17,7 +17,6 @@ import {
   Star,
   Archive,
   Trash2,
-  Mail,
   Settings,
   HelpCircle,
   Plus,
@@ -50,8 +49,7 @@ export function EmailSidebar({ folders, activeFolder, onFolderChange, onCompose,
     <Sidebar>
       <SidebarHeader>
         <SidebarItem>
-          <Mail className="size-5 text-sky-500" data-slot="icon" />
-          <SidebarLabel>Vegvisr Email</SidebarLabel>
+          <SidebarLabel>Vemail</SidebarLabel>
         </SidebarItem>
         <Button color="sky" className="mt-2 w-full" onClick={onCompose}>
           <Plus className="size-4" data-slot="icon" />
