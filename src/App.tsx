@@ -2,6 +2,7 @@ import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } fro
 import { AuthBar, EcosystemNav, LanguageSelector } from 'vegvisr-ui-kit';
 import { LanguageContext } from './lib/LanguageContext';
 import { readStoredUser, type AuthUser } from './lib/auth';
+import ImpersonationBar from './components/ImpersonationBar';
 import { sendEmail, getAccounts, loadAccountsFromCloud, replaceLocalAccounts, type EmailAccount } from './lib/emailAccounts';
 import { deleteEmail, fetchEmails, fetchEmail, toEmail, updateEmail } from './lib/emailStore';
 import { getStoredLanguage, setStoredLanguage } from './lib/storage';
@@ -678,6 +679,7 @@ function App() {
     <LanguageContext.Provider value={contextValue}>
       <div className="flex h-screen flex-col">
         {appHeader}
+        <ImpersonationBar />
 
         {/* Three-panel layout: sidebar | email list | email content */}
         <div className="flex min-h-0 flex-1">
